@@ -129,3 +129,27 @@ class TestResolveDependencies:
         result = resolve_dependencies("deps/requirements.txt", tmp_path)
 
         assert result == ["requests"]
+
+    def test_auto_detect_requirements_from_fallback(self, tmp_path: Path) -> None:
+        """Test auto-detecting requirements.txt from fallback path."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        source_path = tmp_path / "source"
+        source_path.mkdir()
+        (source_path / "requirements.txt").write_text("requests\n")
+
+        result = resolve_dependencies(None, repo_path, source_path)
+
+        assert result == ["requests"]
+
+    def test_with_requirements_path_from_fallback(self, tmp_path: Path) -> None:
+        """Test resolving requirements path relative to fallback directory."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        source_path = tmp_path / "source"
+        (source_path / "deps").mkdir(parents=True)
+        (source_path / "deps" / "requirements.txt").write_text("click\n")
+
+        result = resolve_dependencies("deps/requirements.txt", repo_path, source_path)
+
+        assert result == ["click"]
