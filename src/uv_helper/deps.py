@@ -52,7 +52,7 @@ def resolve_dependencies(
 
     Resolution order:
     1. If --with requirements.txt: parse file
-    2. If --with lib1,lib2: split by comma
+    2. If --with lib1,lib2: append to auto-detected requirements.txt (if exists)
     3. Auto-detect requirements.txt in repo root
     4. Fallback to no dependencies
 
@@ -75,8 +75,17 @@ def resolve_dependencies(
                 req_path = Path(with_arg)
                 return parse_requirements_file(req_path)
         else:
-            # Treat as comma-separated list
-            return parse_dependencies_string(with_arg)
+            # Treat as comma-separated list - append to auto-detected requirements
+            dependencies = []
+
+            # First, auto-detect requirements.txt in repo root
+            auto_requirements = repo_path / "requirements.txt"
+            if auto_requirements.exists():
+                dependencies.extend(parse_requirements_file(auto_requirements))
+
+            # Then append additional dependencies from --with
+            dependencies.extend(parse_dependencies_string(with_arg))
+            return dependencies
 
     # Case 2: Auto-detect requirements.txt in repo root
     auto_requirements = repo_path / "requirements.txt"

@@ -104,6 +104,98 @@ def modify_shebang(script_path: Path, use_exact: bool = True) -> bool:
         raise ScriptInstallerError(f"Failed to modify shebang: {e}") from e
 
 
+def add_package_source(script_path: Path, package_name: str, package_path: Path) -> bool:
+    """
+    Add a package source to script's inline metadata.
+
+    Adds or updates the [tool.uv.sources] section in the script's inline
+    metadata block with an absolute path to prevent UV from creating relative paths.
+
+    Args:
+        script_path: Path to Python script
+        package_name: Name of the package
+        package_path: Absolute path to the package directory
+
+    Returns:
+        True if successful
+
+    Raises:
+        ScriptInstallerError: If modification fails
+    """
+    try:
+        with open(script_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        lines = content.splitlines(keepends=True)
+
+        # Find the script metadata block
+        start_idx = None
+        end_idx = None
+        for i, line in enumerate(lines):
+            if line.strip() == "# /// script":
+                start_idx = i
+            elif start_idx is not None and line.strip() == "# ///":
+                end_idx = i
+                break
+
+        # Resolve to absolute path
+        abs_package_path = package_path.resolve()
+
+        # Prepare the source line
+        source_line = f'# {package_name} = {{ path = "{abs_package_path}" }}\n'
+
+        if start_idx is not None and end_idx is not None:
+            # Metadata block exists, check if [tool.uv.sources] section exists
+            sources_idx = None
+            for i in range(start_idx + 1, end_idx):
+                if lines[i].strip() == "# [tool.uv.sources]":
+                    sources_idx = i
+                    break
+
+            if sources_idx is not None:
+                # [tool.uv.sources] exists, check if package already defined
+                package_idx = None
+                for i in range(sources_idx + 1, end_idx):
+                    if lines[i].strip().startswith(f"# {package_name} ="):
+                        package_idx = i
+                        break
+
+                if package_idx is not None:
+                    # Update existing package line
+                    lines[package_idx] = source_line
+                else:
+                    # Add new package after [tool.uv.sources]
+                    lines.insert(sources_idx + 1, source_line)
+            else:
+                # Add [tool.uv.sources] section before closing ///
+                lines.insert(end_idx, "# [tool.uv.sources]\n")
+                lines.insert(end_idx + 1, source_line)
+        else:
+            # No metadata block exists, create one after shebang
+            shebang_idx = 0
+            if lines and lines[0].startswith("#!"):
+                shebang_idx = 1
+
+            metadata_lines = [
+                "# /// script\n",
+                "# [tool.uv.sources]\n",
+                source_line,
+                "# ///\n",
+            ]
+
+            # Insert after shebang (if exists) or at the beginning
+            for line in reversed(metadata_lines):
+                lines.insert(shebang_idx, line)
+
+        # Write back
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+
+        return True
+    except (OSError, UnicodeDecodeError) as e:
+        raise ScriptInstallerError(f"Failed to add package source: {e}") from e
+
+
 def create_symlink(
     script_path: Path,
     target_dir: Path,

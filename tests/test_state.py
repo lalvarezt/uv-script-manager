@@ -16,6 +16,7 @@ class TestScriptInfo:
         """Test model_dump serialization."""
         script = ScriptInfo(
             name="test.py",
+            source_type="git",
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime(2025, 1, 1, 12, 0, 0),
@@ -28,6 +29,7 @@ class TestScriptInfo:
         result = script.model_dump(mode="json")
 
         assert result["name"] == "test.py"
+        assert result["source_type"] == "git"
         assert result["source_url"] == "https://github.com/user/repo"
         assert result["ref"] == "main"
         assert result["dependencies"] == ["requests", "click"]
@@ -40,6 +42,7 @@ class TestScriptInfo:
         """Test model_validate deserialization."""
         data = {
             "name": "test.py",
+            "source_type": "git",
             "source_url": "https://github.com/user/repo",
             "ref": "main",
             "installed_at": "2025-01-01T12:00:00",
@@ -52,6 +55,7 @@ class TestScriptInfo:
         script = ScriptInfo.model_validate(data)
 
         assert script.name == "test.py"
+        assert script.source_type == "git"
         assert script.source_url == "https://github.com/user/repo"
         assert script.ref == "main"
         assert isinstance(script.installed_at, datetime)
@@ -65,18 +69,19 @@ class TestScriptInfo:
         data = {
             "name": "test.py",
             "source_url": "https://github.com/user/repo",
-            # Missing required fields
+            # Missing required fields: installed_at, repo_path
         }
 
         with pytest.raises(ValidationError) as exc_info:
             ScriptInfo.model_validate(data)
 
-        assert "ref" in str(exc_info.value)
+        assert "installed_at" in str(exc_info.value)
 
     def test_validation_default_values(self) -> None:
         """Test that default values are applied correctly."""
         script = ScriptInfo(
             name="test.py",
+            source_type="git",
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -98,6 +103,7 @@ class TestStateManager:
 
         script = ScriptInfo(
             name="test.py",
+            source_type="git",
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -112,6 +118,7 @@ class TestStateManager:
 
         assert retrieved is not None
         assert retrieved.name == "test.py"
+        assert retrieved.source_type == "git"
         assert retrieved.source_url == "https://github.com/user/repo"
 
     def test_get_script_not_found(self, tmp_path: Path) -> None:
@@ -130,6 +137,7 @@ class TestStateManager:
 
         script = ScriptInfo(
             name="test.py",
+            source_type="git",
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -151,6 +159,7 @@ class TestStateManager:
 
         script = ScriptInfo(
             name="test.py",
+            source_type="git",
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -171,6 +180,7 @@ class TestStateManager:
 
         script1 = ScriptInfo(
             name="test1.py",
+            source_type="git",
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -181,6 +191,7 @@ class TestStateManager:
         )
         script2 = ScriptInfo(
             name="test2.py",
+            source_type="git",
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -209,6 +220,7 @@ class TestStateManager:
 
         script1 = ScriptInfo(
             name="test1.py",
+            source_type="git",
             source_url="https://github.com/user/repo1",
             ref="main",
             installed_at=datetime.now(),
@@ -219,6 +231,7 @@ class TestStateManager:
         )
         script2 = ScriptInfo(
             name="test2.py",
+            source_type="git",
             source_url="https://github.com/user/repo1",
             ref="main",
             installed_at=datetime.now(),
@@ -229,6 +242,7 @@ class TestStateManager:
         )
         script3 = ScriptInfo(
             name="test3.py",
+            source_type="git",
             source_url="https://github.com/user/repo2",
             ref="main",
             installed_at=datetime.now(),
@@ -257,6 +271,7 @@ class TestStateManager:
 
         script = ScriptInfo(
             name="test.py",
+            source_type="git",
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime(2025, 1, 1),
@@ -270,6 +285,7 @@ class TestStateManager:
         # Update with new commit hash
         updated_script = ScriptInfo(
             name="test.py",
+            source_type="git",
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime(2025, 1, 2),
@@ -306,6 +322,7 @@ class TestStateManager:
         manager1 = StateManager(state_file)
         script = ScriptInfo(
             name="test.py",
+            source_type="git",
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime(2025, 1, 1, 12, 0, 0),

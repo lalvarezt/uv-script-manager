@@ -24,12 +24,21 @@ from .git_manager import (
 )
 from .script_installer import (
     ScriptInstallerError,
+    add_package_source,
     install_script,
     remove_script_installation,
     verify_uv_available,
 )
 from .state import ScriptInfo, StateManager
-from .utils import ensure_dir, get_repo_name_from_url, is_git_url, prompt_confirm
+from .utils import (
+    ensure_dir,
+    expand_path,
+    get_repo_name_from_url,
+    is_git_url,
+    is_local_directory,
+    prompt_confirm,
+    sanitize_directory_name,
+)
 
 console = Console()
 
@@ -80,7 +89,7 @@ def cli(ctx: click.Context, config: Path | None) -> None:
 @click.option(
     "--force", "-f", is_flag=True, help="Force overwrite existing scripts without confirmation"
 )
-@click.option("--no-symlink", is_flag=True, help="Skip creating symlinks in bin directory")
+@click.option("--no-symlink", is_flag=True, help="Skip creating symlinks in install directory")
 @click.option(
     "--install-dir",
     type=click.Path(path_type=Path),
@@ -91,6 +100,16 @@ def cli(ctx: click.Context, config: Path | None) -> None:
     "--exact/--no-exact",
     default=None,
     help="Use --exact flag in shebang for precise dependency management (default: from config)",
+)
+@click.option(
+    "--copy-parent-dir",
+    is_flag=True,
+    help="For local sources: copy entire parent directory instead of just the script",
+)
+@click.option(
+    "--add-source-package",
+    default=None,
+    help="Add source as a local package dependency (optional: specify package name)",
 )
 @click.pass_context
 def install(
@@ -103,19 +122,39 @@ def install(
     install_dir: Path | None,
     verbose: bool,
     exact: bool | None,
+    copy_parent_dir: bool,
+    add_source_package: str | None,
 ) -> None:
     """
-    Install Python scripts from a Git repository.
+    Install Python scripts from a Git repository or local directory.
 
-    Downloads the specified repository, processes the requested scripts,
-    adds dependencies, modifies shebangs to use 'uv run --script', and
-    creates symlinks in the bin directory for easy execution.
+    Downloads the specified repository (or copies from local directory),
+    processes the requested scripts, adds dependencies, modifies shebangs
+    to use 'uv run --script', and creates symlinks in the install directory.
 
     Examples:
 
         \b
-        # Install a single script
+        # Install from Git repository
         uv-helper install https://github.com/user/repo --script myscript.py
+
+        \b
+        # Install from local directory
+        uv-helper install /path/to/scripts --script app.py
+
+        \b
+        # Install from local directory, copying entire parent directory
+        uv-helper install /path/to/pyhprof --script spring_heapdumper.py --copy-parent-dir
+
+        \b
+        # Install with local package as dependency
+        uv-helper install /path/to/pyhprof --script spring_heapdumper.py \\
+            --copy-parent-dir --add-source-package=pyhprof
+
+        \b
+        # Install from Git repo and add as package dependency
+        uv-helper install https://github.com/user/repo --script app.py \\
+            --add-source-package=mypackage
 
         \b
         # Install multiple scripts
@@ -126,23 +165,30 @@ def install(
         uv-helper install https://github.com/user/repo --script app.py --with requirements.txt
 
         \b
-        # Install with inline dependencies
-        uv-helper install https://github.com/user/repo --script app.py --with "requests,click>=8.0"
-
-        \b
         # Install from a specific branch or tag
         uv-helper install https://github.com/user/repo#dev --script app.py
         uv-helper install https://github.com/user/repo@v1.0.0 --script app.py
     """
     config = ctx.obj["config"]
 
-    # Validate Git URL
-    if not is_git_url(git_url):
-        console.print(f"[red]Error:[/red] Invalid Git URL: {git_url}")
+    # Detect source type
+    is_local = is_local_directory(git_url)
+    is_git = is_git_url(git_url)
+
+    if not is_local and not is_git:
+        console.print(f"[red]Error:[/red] Invalid source: {git_url}")
+        console.print("Source must be either a Git URL or a local directory path.")
         sys.exit(1)
 
-    # Parse Git URL
-    git_ref = parse_git_url(git_url)
+    # Validate --add-source-package requirements
+    if add_source_package is not None and is_local and not copy_parent_dir:
+        console.print(
+            "[red]Error:[/red] --add-source-package requires --copy-parent-dir for local sources"
+        )
+        sys.exit(1)
+
+    # Parse Git URL (only for Git sources)
+    git_ref = parse_git_url(git_url) if is_git else None
 
     # Initialize state manager
     state_manager = StateManager(config.state_file)
@@ -161,39 +207,101 @@ def install(
             console.print("Installation cancelled.")
             return
 
-    # Determine repo directory
-    repo_name = get_repo_name_from_url(git_ref.base_url)
-    repo_path = config.repo_dir / repo_name
+    # Determine repo directory and handle source-specific operations
+    if is_git:
+        # Git source: clone/update repository
+        assert git_ref is not None  # Type narrowing for type checker
+        repo_name = get_repo_name_from_url(git_ref.base_url)
+        repo_path = config.repo_dir / repo_name
+        source_path = None
 
-    # Clone or update repository
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-        transient=True,
-    ) as progress:
-        task = progress.add_task("Cloning/updating repository...", total=None)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task("Cloning/updating repository...", total=None)
 
+            try:
+                clone_or_update(
+                    git_ref.base_url,
+                    git_ref.ref_value,
+                    repo_path,
+                    depth=config.clone_depth,
+                )
+                progress.update(task, completed=True)
+            except GitError as e:
+                console.print(f"[red]Error:[/red] Git: {e}")
+                sys.exit(1)
+
+        # Get current commit hash and actual branch
         try:
-            clone_or_update(
-                git_ref.base_url,
-                git_ref.ref_value,
-                repo_path,
-                depth=config.clone_depth,
-            )
-            progress.update(task, completed=True)
+            commit_hash = get_current_commit_hash(repo_path)
+            # If no specific ref was provided, get the actual default branch
+            actual_ref = git_ref.ref_value or get_default_branch(repo_path)
         except GitError as e:
-            console.print(f"[red]Error:[/red] Git: {e}")
+            console.print(f"[red]Error:[/red] Git: Failed to get commit hash: {e}")
+            sys.exit(1)
+    else:
+        # Local source: copy to repo directory
+        import shutil
+
+        source_path = expand_path(git_url)
+        commit_hash = None
+        actual_ref = None
+        assert source_path is not None  # Type narrowing for type checker
+
+        # Validate source path exists and is a directory
+        if not source_path.exists():
+            console.print(f"[red]Error:[/red] Source path does not exist: {source_path}")
+            sys.exit(1)
+        if not source_path.is_dir():
+            console.print(f"[red]Error:[/red] Source path is not a directory: {source_path}")
             sys.exit(1)
 
-    # Get current commit hash and actual branch
-    try:
-        commit_hash = get_current_commit_hash(repo_path)
-        # If no specific ref was provided, get the actual default branch
-        actual_ref = git_ref.ref_value or get_default_branch(repo_path)
-    except GitError as e:
-        console.print(f"[red]Error:[/red] Git: Failed to get commit hash: {e}")
-        sys.exit(1)
+        if copy_parent_dir:
+            # Copy entire parent directory
+            dir_name = sanitize_directory_name(source_path.name)
+            repo_path = config.repo_dir / dir_name
+
+            if repo_path.exists():
+                console.print(f"[yellow]Warning:[/yellow] Directory already exists: {repo_path}")
+                console.print("Existing files will be overwritten.")
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+                transient=True,
+            ) as progress:
+                task = progress.add_task("Copying directory...", total=None)
+
+                # Copy directory contents
+                ensure_dir(repo_path)
+                for item in source_path.iterdir():
+                    dest = repo_path / item.name
+                    if item.is_dir():
+                        if dest.exists():
+                            shutil.rmtree(dest)
+                        shutil.copytree(item, dest)
+                    else:
+                        shutil.copy2(item, dest)
+
+                progress.update(task, completed=True)
+        else:
+            # Copy only the script files
+            # Create directory named after first script
+            first_script = script[0]
+            dir_name = sanitize_directory_name(first_script.replace(".py", ""))
+            repo_path = config.repo_dir / dir_name
+
+            if repo_path.exists():
+                console.print(f"[yellow]Warning:[/yellow] Directory already exists: {repo_path}")
+                console.print("Existing files will be overwritten.")
+
+            ensure_dir(repo_path)
+            # Files will be copied during the script installation loop
 
     # Resolve dependencies
     try:
@@ -211,7 +319,25 @@ def install(
     # Install scripts
     results = []
     for script_name in script:
-        script_path = repo_path / script_name
+        # For local sources without copy-parent-dir, copy script from source
+        if is_local and not copy_parent_dir:
+            import shutil
+
+            assert source_path is not None  # Type narrowing for type checker
+            source_script = source_path / script_name
+            if not source_script.exists():
+                console.print(
+                    f"[red]Error:[/red] Script '{script_name}' not found at: {source_script}"
+                )
+                results.append((script_name, False, "Not found"))
+                continue
+
+            # Copy to repo_path
+            dest_script = repo_path / script_name
+            shutil.copy2(source_script, dest_script)
+            script_path = dest_script
+        else:
+            script_path = repo_path / script_name
 
         # Check if script exists
         if not script_path.exists():
@@ -228,6 +354,16 @@ def install(
             ) as progress:
                 task = progress.add_task(f"Installing {script_name}...", total=None)
 
+                # Add source package if requested (before install_script)
+                if add_source_package is not None:
+                    # Determine package name
+                    pkg_name = add_source_package if add_source_package else repo_path.name
+                    # Add package source directly to script metadata
+                    add_package_source(script_path, pkg_name, repo_path)
+                    # Add package to dependencies list (if not already present)
+                    if pkg_name not in dependencies:
+                        dependencies.append(pkg_name)
+
                 symlink_path = install_script(
                     script_path,
                     dependencies,
@@ -240,17 +376,30 @@ def install(
 
                 progress.update(task, completed=True)
 
-            # Save to state
-            script_info = ScriptInfo(
-                name=script_name,
-                source_url=git_ref.base_url,
-                ref=actual_ref,
-                installed_at=datetime.now(),
-                repo_path=repo_path,
-                symlink_path=symlink_path,
-                dependencies=dependencies,
-                commit_hash=commit_hash,
-            )
+            # Save to state with appropriate fields based on source type
+            if is_git:
+                assert git_ref is not None  # Type narrowing for type checker
+                script_info = ScriptInfo(
+                    name=script_name,
+                    source_type="git",
+                    source_url=git_ref.base_url,
+                    ref=actual_ref,
+                    installed_at=datetime.now(),
+                    repo_path=repo_path,
+                    symlink_path=symlink_path,
+                    dependencies=dependencies,
+                    commit_hash=commit_hash,
+                )
+            else:
+                script_info = ScriptInfo(
+                    name=script_name,
+                    source_type="local",
+                    installed_at=datetime.now(),
+                    repo_path=repo_path,
+                    symlink_path=symlink_path,
+                    dependencies=dependencies,
+                    source_path=source_path,
+                )
             state_manager.add_script(script_info)
 
             results.append((script_name, True, symlink_path))
@@ -416,7 +565,81 @@ def update(ctx: click.Context, script_name: str, force: bool, exact: bool | None
 
     assert script_info is not None  # Type narrowing for type checker
 
-    # Update repository
+    # Branch based on source type
+    if script_info.source_type == "local":
+        # For local scripts, re-copy from source
+        import shutil
+
+        if not script_info.source_path or not script_info.source_path.exists():
+            console.print(
+                f"[red]Error:[/red] Source directory not found: {script_info.source_path}"
+            )
+            console.print("The original source directory may have been moved or deleted.")
+            sys.exit(1)
+
+        assert script_info.source_path is not None  # Type narrowing for type checker
+
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+                transient=True,
+            ) as progress:
+                task = progress.add_task("Updating from source...", total=None)
+
+                # Re-copy from source directory
+                # Determine if we need to copy the whole directory or just the script
+                if (script_info.source_path / script_name).exists():
+                    # Script is directly in source_path, copy just the script
+                    source_script = script_info.source_path / script_name
+                    dest_script = script_info.repo_path / script_name
+                    shutil.copy2(source_script, dest_script)
+                else:
+                    # Copy entire directory contents
+                    for item in script_info.source_path.iterdir():
+                        dest = script_info.repo_path / item.name
+                        if item.is_dir():
+                            if dest.exists():
+                                shutil.rmtree(dest)
+                            shutil.copytree(item, dest)
+                        else:
+                            shutil.copy2(item, dest)
+
+                progress.update(task, completed=True)
+
+            # Reinstall script
+            script_path = script_info.repo_path / script_name
+            symlink_path = install_script(
+                script_path,
+                script_info.dependencies,
+                config.install_dir,
+                auto_chmod=config.auto_chmod,
+                auto_symlink=config.auto_symlink,
+                verify_after_install=config.verify_after_install,
+                use_exact=exact if exact is not None else config.use_exact_flag,
+            )
+
+            # Update state
+            script_info.installed_at = datetime.now()
+            script_info.symlink_path = symlink_path
+            state_manager.add_script(script_info)
+
+            result = [(script_name, "updated")]
+            _display_update_results(result)
+
+        except (ScriptInstallerError, Exception) as e:
+            result = [(script_name, f"Error: {e}")]
+            _display_update_results(result)
+            sys.exit(1)
+
+        return
+
+    # Update Git repository
+    # At this point, source_type must be "git", so these fields are not None
+    assert script_info.source_url is not None  # Type narrowing for type checker
+    assert script_info.ref is not None  # Type narrowing for type checker
+
     try:
         with Progress(
             SpinnerColumn(),
@@ -520,6 +743,15 @@ def update_all(ctx: click.Context, force: bool, exact: bool | None) -> None:
 
     results = []
     for script_info in scripts:
+        # Skip local scripts (they need manual source updates)
+        if script_info.source_type == "local":
+            results.append((script_info.name, "skipped (local)"))
+            continue
+
+        # At this point, source_type must be "git"
+        assert script_info.source_url is not None  # Type narrowing for type checker
+        assert script_info.ref is not None  # Type narrowing for type checker
+
         try:
             # Update repository
             clone_or_update(
@@ -622,15 +854,27 @@ def _display_scripts_table(scripts: list[ScriptInfo], verbose: bool) -> None:
         table.add_column("Dependencies")
 
     for script in scripts:
+        # Display source based on type
+        if script.source_type == "git" and script.source_url:
+            source_display = (
+                script.source_url.split("/")[-2:][0] + "/" + script.source_url.split("/")[-1]
+            )
+            ref_display = script.ref or "N/A"
+        else:
+            # Local source
+            source_display = str(script.source_path) if script.source_path else "local"
+            ref_display = "N/A"
+
         row = [
             script.name,
-            script.source_url.split("/")[-2:][0] + "/" + script.source_url.split("/")[-1],
-            script.ref,
+            source_display,
+            ref_display,
             script.installed_at.strftime("%Y-%m-%d %H:%M"),
         ]
 
         if verbose:
-            row.append(script.commit_hash)
+            commit_display = script.commit_hash if script.commit_hash else "N/A"
+            row.append(commit_display)
             row.append(", ".join(script.dependencies) if script.dependencies else "None")
 
         table.add_row(*row)

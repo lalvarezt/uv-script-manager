@@ -1,6 +1,6 @@
 # UV-Helper
 
-> A CLI tool to install and manage standalone Python scripts from Git repositories that lack `setup.py` or `pyproject.toml` files.
+> A CLI tool to install and manage standalone Python scripts from Git repositories or local directories that lack `setup.py` or `pyproject.toml` files.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -35,13 +35,16 @@ script.py --help
 ## Features
 
 - **Direct Git Installation**: Install scripts from any Git repository (GitHub, GitLab, Bitbucket, self-hosted) with one command
+- **Local Directory Support**: Install scripts from local directories on your filesystem
 - **Git Refs Support**: Install from specific branches, tags, or commits
 - **Dependency Management**: Automatically handle script dependencies
+- **Local Package Dependencies**: Add local packages as dependencies with automatic path management
 - **Idempotent Operations**: Re-running installs updates instead of failing
 - **State Tracking**: Keep track of all installed scripts
 - **Rich CLI**: Beautiful terminal output with progress bars and tables
 - **Configuration**: Customize behavior via TOML config files
 - **Update Management**: Update individual scripts or all at once
+- **Auto-Migration**: Database schema automatically migrates when upgrading
 
 ## Installation
 
@@ -99,24 +102,35 @@ uv-helper install <git-url> --script <script.py> [--script <more.py> ...] [OPTIO
 
 **Arguments:**
 
-- `git-url`: Git repository URL (supports `@tag`, `#branch` suffixes)
+- `source`: Git repository URL or local directory path (Git URLs support `@tag`, `#branch` suffixes)
 
 **Options:**
 
 - `--script TEXT`: Script names to install (can be repeated)
-- `--with TEXT`: Dependencies (`requirements.txt` path or comma-separated list)
+- `--with TEXT`: Dependencies (`requirements.txt` path or comma-separated list, appends to existing dependencies)
 - `--force`: Force overwrite without confirmation
 - `--no-symlink`: Skip creating symlinks
 - `--install-dir PATH`: Custom installation directory
 - `--exact/--no-exact`: Use `--exact` flag in shebang for precise dependency management (default: from config)
+- `--copy-parent-dir`: For local sources, copy entire parent directory instead of just the script
+- `--add-source-package TEXT`: Add source as a local package dependency (optionally specify package name)
 
 **Examples:**
 
 ```bash
-# Basic installation
+# Basic installation from Git
 uv-helper install https://github.com/user/repo --script script.py
 
-# With inline dependencies
+# Install from local directory
+uv-helper install /path/to/scripts --script app.py
+
+# Install from local directory with full package copy
+uv-helper install /path/to/mypackage --script cli.py --copy-parent-dir
+
+# Install with local package as dependency
+uv-helper install https://github.com/user/repo --script app.py --add-source-package=mylib
+
+# With inline dependencies (appends to requirements.txt if present)
 uv-helper install https://github.com/user/repo --script tool.py --with requests,click,rich
 
 # Multiple scripts
@@ -273,13 +287,21 @@ uv-helper install ...
 
 UV-Helper automates the following workflow:
 
+**For Git sources:**
 1. **Clone Repository**: Clones the Git repository (or updates if already cloned)
 2. **Checkout Ref**: Checks out the specified branch, tag, or commit
-3. **Resolve Dependencies**: Parses requirements from `--with` flag or auto-detects `requirements.txt`
-4. **Process Script**: Runs `uv add --script` to add dependency metadata
-5. **Modify Shebang**: Replaces shebang with `#!/usr/bin/env -S uv run --exact --script`
-6. **Create Symlink**: Creates symlink in `~/.local/bin` (or custom bin directory)
-7. **Track State**: Saves installation info to state file
+
+**For local sources:**
+1. **Copy Files**: Copies script files or entire directory to managed location
+
+**Common steps:**
+3. **Resolve Dependencies**: Parses requirements from `--with` flag (appending to auto-detected `requirements.txt`)
+4. **Add Package Sources**: If `--add-source-package` is used, adds local package to dependencies and sources
+5. **Process Script**: Adds dependency metadata to script inline metadata block
+6. **Modify Shebang**: Replaces shebang with `#!/usr/bin/env -S uv run --exact --script`
+7. **Create Symlink**: Creates symlink in `~/.local/bin` (or custom install directory)
+8. **Track State**: Saves installation info to state file
+9. **Auto-Migration**: Automatically runs database schema migrations when needed
 
 ### Shebang Transformation
 
