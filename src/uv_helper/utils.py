@@ -196,9 +196,20 @@ def validate_python_script(script_path: Path) -> bool:
         return False
 
     try:
+        # Try to parse the file as Python code to validate syntax
+        import ast
+
         with open(script_path, "r", encoding="utf-8") as f:
-            first_line = f.readline()
-            # Check for shebang or valid Python
-            return first_line.startswith("#!") or "import" in first_line or "def" in first_line
+            content = f.read()
+            # Reject empty or whitespace-only files
+            if not content.strip():
+                return False
+            # Parse to check for valid Python syntax
+            ast.parse(content)
+        return True
+    except (SyntaxError, ValueError):
+        # Invalid Python syntax
+        return False
     except Exception:
+        # Other errors (encoding, I/O, etc.)
         return False
