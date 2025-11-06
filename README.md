@@ -1,9 +1,10 @@
 # UV-Helper
 
-> A CLI tool to install and manage standalone Python scripts from Git repositories or local directories that lack `setup.py` or `pyproject.toml` files.
-
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/lalvarezt/uv-helper/workflows/CI/badge.svg)](https://github.com/lalvarezt/uv-helper/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A CLI tool to install and manage standalone Python scripts from Git repositories or local directories that lack `setup.py` or `pyproject.toml` files.
 
 ## Overview
 
