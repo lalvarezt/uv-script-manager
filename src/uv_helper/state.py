@@ -2,12 +2,11 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from tinydb import Query, TinyDB
 
-from .constants import DB_TABLE_SCRIPTS, SOURCE_TYPE_GIT, SOURCE_TYPE_LOCAL
+from .constants import DB_TABLE_SCRIPTS, SourceType
 from .migrations import MIGRATIONS, MigrationRunner
 from .utils import ensure_dir
 
@@ -24,12 +23,12 @@ class ScriptInfo(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
-    source_type: Literal["git", "local"]  # Use SOURCE_TYPE_GIT or SOURCE_TYPE_LOCAL constants
+    source_type: SourceType
     installed_at: datetime
     repo_path: Path
     symlink_path: Path | None = None
     dependencies: list[str] = Field(default_factory=list)
-    # Git-specific fields (required when source_type="git")
+    # Git-specific fields (required when source_type=SourceType.GIT)
     source_url: str | None = None
     ref: str | None = None
     commit_hash: str | None = None

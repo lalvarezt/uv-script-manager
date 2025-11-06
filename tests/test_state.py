@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from uv_helper.constants import SourceType
 from uv_helper.state import ScriptInfo, StateManager
 
 
@@ -16,7 +17,7 @@ class TestScriptInfo:
         """Test model_dump serialization."""
         script = ScriptInfo(
             name="test.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime(2025, 1, 1, 12, 0, 0),
@@ -81,7 +82,7 @@ class TestScriptInfo:
         """Test that default values are applied correctly."""
         script = ScriptInfo(
             name="test.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -103,7 +104,7 @@ class TestStateManager:
 
         script = ScriptInfo(
             name="test.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -137,7 +138,7 @@ class TestStateManager:
 
         script = ScriptInfo(
             name="test.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -159,7 +160,7 @@ class TestStateManager:
 
         script = ScriptInfo(
             name="test.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -180,7 +181,7 @@ class TestStateManager:
 
         script1 = ScriptInfo(
             name="test1.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -191,7 +192,7 @@ class TestStateManager:
         )
         script2 = ScriptInfo(
             name="test2.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime.now(),
@@ -220,7 +221,7 @@ class TestStateManager:
 
         script1 = ScriptInfo(
             name="test1.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo1",
             ref="main",
             installed_at=datetime.now(),
@@ -231,7 +232,7 @@ class TestStateManager:
         )
         script2 = ScriptInfo(
             name="test2.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo1",
             ref="main",
             installed_at=datetime.now(),
@@ -242,7 +243,7 @@ class TestStateManager:
         )
         script3 = ScriptInfo(
             name="test3.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo2",
             ref="main",
             installed_at=datetime.now(),
@@ -271,7 +272,7 @@ class TestStateManager:
 
         script = ScriptInfo(
             name="test.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime(2025, 1, 1),
@@ -285,7 +286,7 @@ class TestStateManager:
         # Update with new commit hash
         updated_script = ScriptInfo(
             name="test.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime(2025, 1, 2),
@@ -322,7 +323,7 @@ class TestStateManager:
         manager1 = StateManager(state_file)
         script = ScriptInfo(
             name="test.py",
-            source_type="git",
+            source_type=SourceType.GIT,
             source_url="https://github.com/user/repo",
             ref="main",
             installed_at=datetime(2025, 1, 1, 12, 0, 0),

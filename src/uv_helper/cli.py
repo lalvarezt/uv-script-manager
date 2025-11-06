@@ -13,7 +13,7 @@ from rich.table import Table
 
 from . import __version__
 from .config import load_config
-from .constants import SOURCE_TYPE_GIT, SOURCE_TYPE_LOCAL
+from .constants import SourceType
 from .deps import resolve_dependencies
 from .git_manager import (
     GitError,
@@ -389,7 +389,7 @@ def install(
                 assert git_ref is not None  # Type narrowing for type checker
                 script_info = ScriptInfo(
                     name=script_name,
-                    source_type=SOURCE_TYPE_GIT,
+                    source_type=SourceType.GIT,
                     source_url=git_ref.base_url,
                     ref=actual_ref,
                     installed_at=datetime.now(),
@@ -401,7 +401,7 @@ def install(
             else:
                 script_info = ScriptInfo(
                     name=script_name,
-                    source_type=SOURCE_TYPE_LOCAL,
+                    source_type=SourceType.LOCAL,
                     installed_at=datetime.now(),
                     repo_path=repo_path,
                     symlink_path=symlink_path,
@@ -518,7 +518,7 @@ def remove(
     # Confirm removal
     if not force:
         console.print(f"Removing script: [cyan]{script_name}[/cyan]")
-        if script_info.source_type == SOURCE_TYPE_GIT:
+        if script_info.source_type == SourceType.GIT:
             source_display = script_info.source_url or "N/A"
         else:
             source_display = str(script_info.source_path) if script_info.source_path else "local"
@@ -579,7 +579,7 @@ def update(ctx: click.Context, script_name: str, force: bool, exact: bool | None
     assert script_info is not None  # Type narrowing for type checker
 
     # Branch based on source type
-    if script_info.source_type == SOURCE_TYPE_LOCAL:
+    if script_info.source_type == SourceType.LOCAL:
         # For local scripts, re-copy from source
         import shutil
 
@@ -765,7 +765,7 @@ def update_all(ctx: click.Context, force: bool, exact: bool | None) -> None:
     git_checked = False
     for script_info in scripts:
         # Skip local scripts (they need manual source updates)
-        if script_info.source_type == SOURCE_TYPE_LOCAL:
+        if script_info.source_type == SourceType.LOCAL:
             results.append((script_info.name, "skipped (local)"))
             continue
 
@@ -884,7 +884,7 @@ def _display_scripts_table(scripts: list[ScriptInfo], verbose: bool) -> None:
 
     for script in scripts:
         # Display source based on type
-        if script.source_type == SOURCE_TYPE_GIT and script.source_url:
+        if script.source_type == SourceType.GIT and script.source_url:
             source_display = (
                 script.source_url.split("/")[-2:][0] + "/" + script.source_url.split("/")[-1]
             )

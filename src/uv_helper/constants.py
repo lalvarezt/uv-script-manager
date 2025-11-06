@@ -1,8 +1,20 @@
 """Constants used throughout UV-Helper."""
 
+from enum import Enum
+
+
 # Source types
-SOURCE_TYPE_GIT = "git"
-SOURCE_TYPE_LOCAL = "local"
+class SourceType(str, Enum):
+    """Script source types.
+
+    Attributes:
+        GIT: Script installed from Git repository
+        LOCAL: Script installed from local filesystem
+    """
+
+    GIT = "git"
+    LOCAL = "local"
+
 
 # Script inline metadata markers (PEP 723)
 SCRIPT_METADATA_START = "# /// script"
