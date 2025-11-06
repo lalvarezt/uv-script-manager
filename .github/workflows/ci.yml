@@ -58,13 +58,5 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Run tests with coverage
-        run: uv run pytest -v --cov=uv_helper --cov-report=term-missing
-
-      - name: Upload coverage reports
-        if: matrix.python-version == '3.13'
-        uses: codecov/codecov-action@v4
-        with:
-          fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Run tests
+        run: uv run pytest -v
