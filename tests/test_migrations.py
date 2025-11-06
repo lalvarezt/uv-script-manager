@@ -181,7 +181,7 @@ class TestMigrationRunner:
         db_path = tmp_path / "test.json"
         db = TinyDB(db_path)
 
-        runner = MigrationRunner(db)
+        runner = MigrationRunner(db, db_path)
         version = runner.get_schema_version()
 
         assert version == 0
@@ -193,7 +193,7 @@ class TestMigrationRunner:
         db_path = tmp_path / "test.json"
         db = TinyDB(db_path)
 
-        runner = MigrationRunner(db)
+        runner = MigrationRunner(db, db_path)
 
         # Set version
         runner.set_schema_version(1)
@@ -214,7 +214,7 @@ class TestMigrationRunner:
         db_path = tmp_path / "test.json"
         db = TinyDB(db_path)
 
-        runner = MigrationRunner(db)
+        runner = MigrationRunner(db, db_path)
         assert runner.needs_migration() is True
 
         db.close()
@@ -224,7 +224,7 @@ class TestMigrationRunner:
         db_path = tmp_path / "test.json"
         db = TinyDB(db_path)
 
-        runner = MigrationRunner(db)
+        runner = MigrationRunner(db, db_path)
         runner.set_schema_version(CURRENT_SCHEMA_VERSION)
 
         assert runner.needs_migration() is False
@@ -248,7 +248,7 @@ class TestMigrationRunner:
         )
 
         # Run all migrations
-        runner = MigrationRunner(db)
+        runner = MigrationRunner(db, db_path)
         runner.run_migrations(MIGRATIONS)
 
         # Verify migration was applied
@@ -266,7 +266,7 @@ class TestMigrationRunner:
         db_path = tmp_path / "test.json"
         db = TinyDB(db_path)
 
-        runner = MigrationRunner(db)
+        runner = MigrationRunner(db, db_path)
         runner.set_schema_version(CURRENT_SCHEMA_VERSION)
 
         # Should not run any migrations
@@ -320,7 +320,7 @@ class TestStateManagerMigration:
         state_manager1 = StateManager(state_file)
 
         # Check version
-        runner = MigrationRunner(state_manager1.db)
+        runner = MigrationRunner(state_manager1.db, state_file)
         version_after_first = runner.get_schema_version()
         assert version_after_first == CURRENT_SCHEMA_VERSION
 
@@ -328,6 +328,6 @@ class TestStateManagerMigration:
         state_manager2 = StateManager(state_file)
 
         # Version should still be the same
-        runner2 = MigrationRunner(state_manager2.db)
+        runner2 = MigrationRunner(state_manager2.db, state_file)
         version_after_second = runner2.get_schema_version()
         assert version_after_second == version_after_first

@@ -7,6 +7,7 @@ from typing import Literal
 from giturlparse import parse as parse_git_url_base
 from pydantic import BaseModel
 
+from .constants import GIT_SHORT_HASH_LENGTH
 from .utils import run_command
 
 
@@ -256,7 +257,7 @@ def get_remote_commit_hash(url: str, ref: str = "HEAD") -> str:
         output = result.stdout.strip()
         if output:
             commit_hash = output.split()[0]
-            return commit_hash[:7]  # Short hash
+            return commit_hash[:GIT_SHORT_HASH_LENGTH]  # Short hash
         raise GitError(f"No commit found for ref '{ref}'")
     except subprocess.CalledProcessError as e:
         raise GitError(f"Failed to get remote commit hash: {e.stderr}") from e

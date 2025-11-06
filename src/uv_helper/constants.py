@@ -34,3 +34,14 @@ DB_TABLE_METADATA = "metadata"
 
 # Metadata keys
 METADATA_KEY_SCHEMA_VERSION = "schema_version"
+
+# Database metadata document ID (fixed ID for schema version tracking)
+DB_METADATA_DOC_ID = 1
+
+# JSON output formatting
+JSON_OUTPUT_INDENT = 2
+
+# Git configuration
+GIT_SHORT_HASH_LENGTH = 7
+GIT_RETRY_MAX_ATTEMPTS = 4
+GIT_RETRY_BACKOFF_BASE = 2  # seconds

@@ -48,7 +48,7 @@ def test_cli_local_install_update_and_remove(tmp_path: Path, monkeypatch) -> Non
     def _fail_if_git_called() -> None:
         raise AssertionError("git verification should not run")
 
-    monkeypatch.setattr("uv_helper.cli.verify_git_available", _fail_if_git_called)
+    monkeypatch.setattr("uv_helper.commands.install.verify_git_available", _fail_if_git_called)
 
     dependencies_seen: dict[str, list[str]] = {}
 
@@ -116,7 +116,7 @@ def test_cli_install_with_add_source_package(tmp_path: Path, monkeypatch) -> Non
 
     monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
     monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.cli.verify_git_available", lambda: None)
+    monkeypatch.setattr("uv_helper.commands.install.verify_git_available", lambda: None)
 
     dependencies_seen: dict[str, list[str]] = {}
 
@@ -205,7 +205,7 @@ def test_cli_install_script_not_found(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
     monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.cli.verify_git_available", lambda: None)
+    monkeypatch.setattr("uv_helper.commands.install.verify_git_available", lambda: None)
 
     # Create source directory without the requested script
     source_dir = tmp_path / "source"
@@ -293,7 +293,7 @@ def test_cli_local_update_without_copy_parent_dir(tmp_path: Path, monkeypatch) -
 
     monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
     monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.cli.verify_git_available", lambda: None)
+    monkeypatch.setattr("uv_helper.commands.update.verify_git_available", lambda: None)
     monkeypatch.setattr("uv_helper.script_installer.process_script_dependencies", lambda p, d: True)
     monkeypatch.setattr("uv_helper.script_installer.verify_script", lambda _: True)
 
@@ -347,7 +347,7 @@ def test_cli_local_update_with_copy_parent_dir(tmp_path: Path, monkeypatch) -> N
 
     monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
     monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.cli.verify_git_available", lambda: None)
+    monkeypatch.setattr("uv_helper.commands.update.verify_git_available", lambda: None)
     monkeypatch.setattr("uv_helper.script_installer.process_script_dependencies", lambda p, d: True)
     monkeypatch.setattr("uv_helper.script_installer.verify_script", lambda _: True)
 

@@ -56,7 +56,7 @@ class StateManager:
         self.scripts = self.db.table(DB_TABLE_SCRIPTS)
 
         # Run any pending migrations
-        runner = MigrationRunner(self.db)
+        runner = MigrationRunner(self.db, state_file)
         if runner.needs_migration():
             runner.run_migrations(MIGRATIONS)
 

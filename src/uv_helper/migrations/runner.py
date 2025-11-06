@@ -7,7 +7,7 @@ from pathlib import Path
 from rich.console import Console
 from tinydb import TinyDB
 
-from ..constants import DB_TABLE_METADATA, METADATA_KEY_SCHEMA_VERSION
+from ..constants import DB_METADATA_DOC_ID, DB_TABLE_METADATA, METADATA_KEY_SCHEMA_VERSION
 from .base import CURRENT_SCHEMA_VERSION, Migration
 
 console = Console()
@@ -16,14 +16,16 @@ console = Console()
 class MigrationRunner:
     """Runs database migrations."""
 
-    def __init__(self, db: TinyDB):
+    def __init__(self, db: TinyDB, db_path: Path):
         """
         Initialize migration runner.
 
         Args:
             db: TinyDB database instance
+            db_path: Path to the database file (for backup purposes)
         """
         self.db = db
+        self.db_path = db_path
         # Metadata table stores schema version as a single document with doc_id=1.
         # Using a fixed doc_id ensures we always retrieve/update the same document
         # instead of creating multiple version entries.
@@ -36,7 +38,7 @@ class MigrationRunner:
         Returns:
             Current schema version, or 0 if not set
         """
-        result = self.metadata.get(doc_id=1)
+        result = self.metadata.get(doc_id=DB_METADATA_DOC_ID)
         if result and isinstance(result, dict):
             return result.get(METADATA_KEY_SCHEMA_VERSION, 0)
         return 0
@@ -49,8 +51,10 @@ class MigrationRunner:
             version: Schema version to set
         """
         # Use update if doc exists, otherwise insert
-        if self.metadata.get(doc_id=1):
-            self.metadata.update({METADATA_KEY_SCHEMA_VERSION: version}, doc_ids=[1])
+        if self.metadata.get(doc_id=DB_METADATA_DOC_ID):
+            self.metadata.update(
+                {METADATA_KEY_SCHEMA_VERSION: version}, doc_ids=[DB_METADATA_DOC_ID]
+            )
         else:
             self.metadata.insert({METADATA_KEY_SCHEMA_VERSION: version})
 
@@ -72,15 +76,14 @@ class MigrationRunner:
             Path to backup file, or None if backup failed
         """
         try:
-            # Get the database file path from TinyDB's storage
-            db_path = Path(self.db.storage._handle.name)  # ty: ignore[possibly-missing-attribute]
-
             # Create backup filename with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_path = db_path.parent / f"{db_path.stem}_backup_{timestamp}{db_path.suffix}"
+            backup_path = (
+                self.db_path.parent / f"{self.db_path.stem}_backup_{timestamp}{self.db_path.suffix}"
+            )
 
             # Create backup
-            shutil.copy2(db_path, backup_path)
+            shutil.copy2(self.db_path, backup_path)
             console.print(f"  Created backup: {backup_path}")
             return backup_path
         except Exception as e:
