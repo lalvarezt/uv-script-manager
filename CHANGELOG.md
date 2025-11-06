@@ -5,6 +5,33 @@ All notable changes to UV-Helper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2025-11-06
+
+### Added
+
+- GitHub Actions CI/CD workflow for automated testing and quality checks
+- `commands/` module with dedicated handler classes (`InstallHandler`, `UpdateHandler`, `RemoveHandler`)
+- `display.py` module for display logic separation
+- `constants.py` module for centralized constant definitions
+- `migrations/` directory with modular migration structure
+- Runtime Python version check at CLI entry point
+- `SourceType` enum for type-safe source type handling
+
+### Fixed
+
+- Git is now optional for local-only script operations
+- `copy_parent_dir` flag now properly persisted and used for local script updates
+- Database path access now uses explicit parameter passing instead of private attribute access
+- Improved dependency resolution for non-Git workflows
+
+### Changed
+
+- Refactored `cli.py` from 851 lines to 346 lines (59% reduction)
+- Extracted command logic into focused handler classes
+- Reorganized migration system into modular directory structure
+- Improved code organization with constants and enums
+- Enhanced test coverage with 960+ new test lines across multiple modules
+
 ## [1.2.0] - 2025-11-03
 
 ### Added

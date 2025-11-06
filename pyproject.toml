@@ -1,6 +1,6 @@
 [project]
 name = "uv-helper"
-version = "1.2.0"
+version = "1.2.1"
 description = "CLI tool to install and manage Python scripts from Git repositories without setup.py/pyproject.toml"
 readme = "README.md"
 requires-python = ">=3.11"
