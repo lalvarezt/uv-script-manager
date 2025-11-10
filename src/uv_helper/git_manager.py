@@ -225,7 +225,7 @@ def get_current_commit_hash(repo_path: Path) -> str:
     """
     try:
         result = run_command(
-            ["git", "rev-parse", "--short", "HEAD"],
+            ["git", "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "HEAD"],
             cwd=repo_path,
             check=True,
         )
