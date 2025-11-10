@@ -39,24 +39,34 @@ class UpdateHandler:
         Update a single script.
 
         Args:
-            script_name: Name of script to update
+            script_name: Name of script to update (can be original name or alias)
             force: Force reinstall even if up-to-date
             exact: Use --exact flag in shebang
 
         Returns:
             Tuple of (script_name, status)
         """
-        # Check if script exists
+        # Check if script exists - try by original name first, then by symlink name
         script_info = self.state_manager.get_script(script_name)
+        if not script_info:
+            # Try searching by symlink name (alias)
+            script_info = self.state_manager.get_script_by_symlink(script_name)
+
         if not script_info:
             self.console.print(f"[red]Error:[/red] Script '{script_name}' not found.")
             raise ValueError(f"Script '{script_name}' not found")
 
-        # Branch based on source type
-        if script_info.source_type == SourceType.LOCAL:
-            return self._update_local_script(script_info, script_name, exact)
+        # Determine display name (use symlink name if available)
+        if script_info.symlink_path:
+            display_name = script_info.symlink_path.name
         else:
-            return self._update_git_script(script_info, script_name, force, exact)
+            display_name = script_info.name
+
+        # Branch based on source type (use actual script name from state, not user input)
+        if script_info.source_type == SourceType.LOCAL:
+            return self._update_local_script(script_info, script_info.name, exact)
+        else:
+            return self._update_git_script(script_info, display_name, force, exact)
 
     def update_all(self, force: bool, exact: bool | None) -> list[tuple[str, str]]:
         """
@@ -81,9 +91,15 @@ class UpdateHandler:
         git_checked = False
 
         for script_info in scripts:
+            # Determine display name (alias if exists)
+            if script_info.symlink_path:
+                display_name = script_info.symlink_path.name
+            else:
+                display_name = script_info.name
+
             # Skip local scripts (they need manual source updates)
             if script_info.source_type == SourceType.LOCAL:
-                results.append((script_info.name, "skipped (local)"))
+                results.append((display_name, "skipped (local)"))
                 continue
 
             # Verify git available once
@@ -97,9 +113,9 @@ class UpdateHandler:
 
             try:
                 status = self._update_git_script_internal(script_info, force, exact)
-                results.append((script_info.name, status))
+                results.append((display_name, status))
             except (GitError, ScriptInstallerError) as e:
-                results.append((script_info.name, f"Error: {e}"))
+                results.append((display_name, f"Error: {e}"))
 
         return results
 
@@ -143,8 +159,13 @@ class UpdateHandler:
 
                 progress.update(task, completed=True)
 
-            # Reinstall script
+            # Reinstall script (preserve alias if it exists)
             script_path = script_info.repo_path / script_name
+            # Extract alias from existing symlink if it differs from original name
+            script_alias = None
+            if script_info.symlink_path and script_info.symlink_path.name != script_name:
+                script_alias = script_info.symlink_path.name
+
             symlink_path = install_script(
                 script_path,
                 script_info.dependencies,
@@ -153,6 +174,7 @@ class UpdateHandler:
                 auto_symlink=self.config.auto_symlink,
                 verify_after_install=self.config.verify_after_install,
                 use_exact=exact if exact is not None else self.config.use_exact_flag,
+                script_alias=script_alias,
             )
 
             # Update state
@@ -160,10 +182,20 @@ class UpdateHandler:
             script_info.symlink_path = symlink_path
             self.state_manager.add_script(script_info)
 
-            return (script_name, "updated")
+            # Return display name (alias if exists)
+            if script_info.symlink_path:
+                display_name = script_info.symlink_path.name
+            else:
+                display_name = script_name
+            return (display_name, "updated")
 
         except (ScriptInstallerError, Exception) as e:
-            return (script_name, f"Error: {e}")
+            # Return display name (alias if exists)
+            if script_info.symlink_path:
+                display_name = script_info.symlink_path.name
+            else:
+                display_name = script_name
+            return (display_name, f"Error: {e}")
 
     def _update_git_script(
         self, script_info: ScriptInfo, script_name: str, force: bool, exact: bool | None
@@ -178,11 +210,14 @@ class UpdateHandler:
             self.console.print(f"[red]Error:[/red] Git: {e}")
             raise
 
+        # Determine display name (alias if exists)
+        display_name = script_info.symlink_path.name if script_info.symlink_path else script_name
+
         try:
             status = self._update_git_script_internal(script_info, force, exact)
-            return (script_name, status)
+            return (display_name, status)
         except (GitError, ScriptInstallerError) as e:
-            return (script_name, f"Error: {e}")
+            return (display_name, f"Error: {e}")
 
     def _update_git_script_internal(
         self, script_info: ScriptInfo, force: bool, exact: bool | None
@@ -224,8 +259,13 @@ class UpdateHandler:
                 self.state_manager.add_script(script_info)
             return "up-to-date"
 
-        # Reinstall script
+        # Reinstall script (preserve alias if it exists)
         script_path = script_info.repo_path / script_info.name
+        # Extract alias from existing symlink if it differs from original name
+        script_alias = None
+        if script_info.symlink_path and script_info.symlink_path.name != script_info.name:
+            script_alias = script_info.symlink_path.name
+
         symlink_path = install_script(
             script_path,
             script_info.dependencies,
@@ -234,6 +274,7 @@ class UpdateHandler:
             auto_symlink=self.config.auto_symlink,
             verify_after_install=self.config.verify_after_install,
             use_exact=exact if exact is not None else self.config.use_exact_flag,
+            script_alias=script_alias,
         )
 
         # Update state with new commit hash and actual branch

@@ -78,6 +78,16 @@ def display_scripts_table(
         table.add_column("Dependencies")
 
     for script in scripts:
+        # Determine the display name (use symlink name if available, otherwise script name)
+        if script.symlink_path:
+            symlink_name = script.symlink_path.name
+            script_display = symlink_name
+            # In verbose mode, show relationship if names differ
+            if verbose and symlink_name != script.name:
+                script_display = f"{symlink_name} -> {script.name}"
+        else:
+            script_display = script.name
+
         # Display source based on type
         if script.source_type == SourceType.GIT and script.source_url:
             source_display = (
@@ -90,7 +100,7 @@ def display_scripts_table(
             ref_display = "N/A"
 
         row = [
-            script.name,
+            script_display,
             source_display,
             ref_display,
             script.installed_at.strftime("%Y-%m-%d %H:%M"),

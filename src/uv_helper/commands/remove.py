@@ -29,7 +29,7 @@ class RemoveHandler:
         Remove an installed script.
 
         Args:
-            script_name: Name of script to remove
+            script_name: Name of script to remove (can be original name or alias)
             clean_repo: Remove repository if no other scripts use it
             force: Skip confirmation prompt
 
@@ -37,15 +37,25 @@ class RemoveHandler:
             ValueError: If script not found
             ScriptInstallerError: If removal fails
         """
-        # Check if script exists
+        # Check if script exists - try by original name first, then by symlink name
         script_info = self.state_manager.get_script(script_name)
+        if not script_info:
+            # Try searching by symlink name (alias)
+            script_info = self.state_manager.get_script_by_symlink(script_name)
+
         if not script_info:
             self.console.print(f"[red]Error:[/red] Script '{script_name}' not found.")
             raise ValueError(f"Script '{script_name}' not found")
 
+        # Determine display name (use symlink name if available)
+        if script_info.symlink_path:
+            display_name = script_info.symlink_path.name
+        else:
+            display_name = script_info.name
+
         # Confirm removal
         if not force:
-            self.console.print(f"Removing script: [cyan]{script_name}[/cyan]")
+            self.console.print(f"Removing script: [cyan]{display_name}[/cyan]")
 
             if script_info.source_type == SourceType.GIT:
                 source_display = script_info.source_url or "N/A"
@@ -64,10 +74,10 @@ class RemoveHandler:
                 self.console.print("Removal cancelled.")
                 return
 
-        # Remove script
+        # Remove script (use actual script name from state, not user input)
         try:
-            remove_script_installation(script_name, self.state_manager, clean_repo=clean_repo)
-            self.console.print(f"[green]✓[/green] Successfully removed {script_name}")
+            remove_script_installation(script_info.name, self.state_manager, clean_repo=clean_repo)
+            self.console.print(f"[green]✓[/green] Successfully removed {display_name}")
         except ScriptInstallerError as e:
             self.console.print(f"[red]Error:[/red] {e}")
             raise

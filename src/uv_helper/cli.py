@@ -93,6 +93,11 @@ def cli(ctx: click.Context, config: Path | None) -> None:
     default=None,
     help="Add source as a local package dependency (optional: specify package name)",
 )
+@click.option(
+    "--alias",
+    default=None,
+    help="Custom name for the installed script (can only be used with a single script)",
+)
 @click.pass_context
 def install(
     ctx: click.Context,
@@ -106,6 +111,7 @@ def install(
     exact: bool | None,
     copy_parent_dir: bool,
     add_source_package: str | None,
+    alias: str | None,
 ) -> None:
     """
     Install Python scripts from a Git repository or local directory.
@@ -150,8 +156,18 @@ def install(
         # Install from a specific branch or tag
         uv-helper install https://github.com/user/repo#dev --script app.py
         uv-helper install https://github.com/user/repo@v1.0.0 --script app.py
+
+        \b
+        # Install with custom alias
+        uv-helper install https://github.com/user/repo --script long_script_name.py --alias short
     """
     config = ctx.obj["config"]
+
+    # Validate --alias flag usage
+    if alias is not None and len(script) != 1:
+        console.print("[red]Error:[/red] --alias can only be used when installing a single script")
+        sys.exit(1)
+
     handler = InstallHandler(config, console)
 
     try:
@@ -166,6 +182,7 @@ def install(
             exact=exact,
             copy_parent_dir=copy_parent_dir,
             add_source_package=add_source_package,
+            alias=alias,
         )
 
         install_directory = install_dir if install_dir else config.install_dir

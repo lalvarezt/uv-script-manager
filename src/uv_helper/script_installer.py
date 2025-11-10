@@ -373,6 +373,7 @@ def install_script(
     auto_symlink: bool = True,
     verify_after_install: bool = True,
     use_exact: bool = True,
+    script_alias: str | None = None,
 ) -> Path | None:
     """
     Install a script with all processing steps.
@@ -393,6 +394,7 @@ def install_script(
         auto_symlink: Whether to create symlink
         verify_after_install: Whether to verify after installation
         use_exact: Whether to use --exact flag in shebang for precise dependency management
+        script_alias: Custom name for the symlink (default: script filename)
 
     Returns:
         Path to symlink if created, None otherwise
@@ -418,7 +420,7 @@ def install_script(
     # Create symlink
     symlink_path = None
     if auto_symlink:
-        symlink_path = create_symlink(script_path, install_dir)
+        symlink_path = create_symlink(script_path, install_dir, script_alias)
 
     # Verify
     if verify_after_install:

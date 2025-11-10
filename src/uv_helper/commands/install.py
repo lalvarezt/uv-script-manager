@@ -63,6 +63,7 @@ class InstallHandler:
         exact: bool | None,
         copy_parent_dir: bool,
         add_source_package: str | None,
+        alias: str | None = None,
     ) -> list[tuple[str, bool, Path | None | str]]:
         """
         Install Python scripts from a Git repository or local directory.
@@ -78,6 +79,7 @@ class InstallHandler:
             exact: Use --exact flag in shebang
             copy_parent_dir: Copy entire parent directory
             add_source_package: Add source as package dependency
+            alias: Custom name for the installed script (only for single script)
 
         Returns:
             List of (script_name, success, location_or_error) tuples
@@ -137,6 +139,7 @@ class InstallHandler:
             commit_hash,
             actual_ref,
             git_ref,
+            alias,
         )
 
     def _check_existing_scripts(self, scripts: tuple[str, ...], force: bool) -> bool:
@@ -350,6 +353,7 @@ class InstallHandler:
         commit_hash: str | None,
         actual_ref: str | None,
         git_ref: Any,
+        alias: str | None = None,
     ) -> list[tuple[str, bool, Path | None | str]]:
         """
         Install all requested scripts.
@@ -374,6 +378,7 @@ class InstallHandler:
                 commit_hash,
                 actual_ref,
                 git_ref,
+                alias,
             )
             results.append(result)
 
@@ -395,6 +400,7 @@ class InstallHandler:
         commit_hash: str | None,
         actual_ref: str | None,
         git_ref: Any,
+        alias: str | None = None,
     ) -> tuple[str, bool, Path | None | str]:
         """Install a single script."""
         # For local sources without copy-parent-dir, copy script from source
@@ -446,6 +452,7 @@ class InstallHandler:
                     auto_symlink=not no_symlink and self.config.auto_symlink,
                     verify_after_install=self.config.verify_after_install,
                     use_exact=exact if exact is not None else self.config.use_exact_flag,
+                    script_alias=alias,
                 )
 
                 progress.update(task, completed=True)

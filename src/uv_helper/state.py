@@ -107,3 +107,20 @@ class StateManager:
         Script = Query()
         results = self.scripts.search(Script.repo_path == str(repo_path))
         return [ScriptInfo.model_validate(r) for r in results]
+
+    def get_script_by_symlink(self, symlink_name: str) -> ScriptInfo | None:
+        """
+        Get script by its symlink name (alias).
+
+        Args:
+            symlink_name: Name of the symlink (without path)
+
+        Returns:
+            ScriptInfo if found, None otherwise
+        """
+        # Search through all scripts and match by symlink name
+        all_scripts = self.list_scripts()
+        for script in all_scripts:
+            if script.symlink_path and script.symlink_path.name == symlink_name:
+                return script
+        return None

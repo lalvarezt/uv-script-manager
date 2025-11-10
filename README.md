@@ -37,6 +37,7 @@ script.py --help
 
 - **Direct Git Installation**: Install scripts from any Git repository (GitHub, GitLab, Bitbucket, self-hosted) with one command
 - **Local Directory Support**: Install scripts from local directories on your filesystem
+- **Script Aliasing**: Install scripts with custom names using the `--alias` flag
 - **Git Refs Support**: Install from specific branches, tags, or commits
 - **Dependency Management**: Automatically handle script dependencies
 - **Local Package Dependencies**: Add local packages as dependencies with automatic path management
@@ -112,6 +113,7 @@ uv-helper install <git-url> --script <script.py> [--script <more.py> ...] [OPTIO
 **Options:**
 
 - `--script TEXT`: Script names to install (can be repeated)
+- `--alias TEXT`: Custom name for the installed script (only for single script installations)
 - `--with TEXT`: Dependencies (`requirements.txt` path or comma-separated list, appends to existing dependencies)
 - `--force`: Force overwrite without confirmation
 - `--no-symlink`: Skip creating symlinks
@@ -142,6 +144,10 @@ uv-helper install https://github.com/user/repo --script tool.py --with requests,
 uv-helper install https://github.com/user/repo \
   --script tool1.py \
   --script tool2.py --force
+
+# Install with custom alias
+uv-helper install https://github.com/user/repo --script long_script_name.py --alias short
+# Now you can run: short --help
 ```
 
 ### `list`
@@ -175,7 +181,7 @@ uv-helper remove <script-name> [OPTIONS]
 
 **Arguments:**
 
-- `script-name`: Name of the script to remove
+- `script-name`: Name of the script to remove (can be original name or alias)
 
 **Options:**
 
@@ -189,6 +195,7 @@ local installs show the stored source directory.
 
 ```bash
 uv-helper remove script.py
+uv-helper remove short  # Remove by alias
 uv-helper remove tool.py --clean-repo --force
 ```
 
@@ -202,17 +209,20 @@ uv-helper update <script-name> [OPTIONS]
 
 **Arguments:**
 
-- `script-name`: Name of the script to update
+- `script-name`: Name of the script to update (can be original name or alias)
 
 **Options:**
 
 - `--force`: Force reinstall even if up-to-date
 - `--exact/--no-exact`: Use `--exact` flag in shebang for precise dependency management (default: from config)
 
+Aliases are automatically preserved when updating scripts.
+
 **Examples:**
 
 ```bash
 uv-helper update script.py
+uv-helper update short  # Update by alias
 uv-helper update tool.py --force
 ```
 
