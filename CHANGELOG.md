@@ -5,6 +5,25 @@ All notable changes to UV-Helper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-11-10
+
+### Added
+
+- **Script aliasing support**: New `--alias` flag for `install` command allows custom naming of installed scripts
+- `get_script_by_symlink()` method in StateManager to search scripts by their symlink/alias name
+- Alias preservation during script updates (both Git and local sources)
+- Support for using aliases in `remove` and `update` commands
+- Display of aliases in `list` command output (normal mode shows alias, verbose shows "alias -> original_name")
+
+### Changed
+
+- Git short SHA length increased from 7 to 8 characters for better uniqueness
+- `list` command now displays symlink names (aliases) instead of original script filenames
+- `list --verbose` shows relationship between alias and original name when they differ
+- `remove` and `update` commands now accept both original script names and aliases
+- Rename the column header from `Installed` to `Updated` to accurately reflect this behavior
+- Updated CLI documentation with alias usage examples
+
 ## [1.2.1] - 2025-11-06
 
 ### Added
