@@ -160,15 +160,15 @@ uv-helper list [OPTIONS]
 
 **Options:**
 
-- `--format TEXT`: Output format (table, json)
-- `--verbose`: Show detailed information
+- `--verbose`, `-v`: Show detailed information (commit hash and dependencies)
+- `--tree`: Display scripts grouped by source in a tree view
 
 **Examples:**
 
 ```bash
 uv-helper list
-uv-helper list --format json
 uv-helper list --verbose
+uv-helper list --tree
 ```
 
 ### `remove`
@@ -246,6 +246,30 @@ needs access to the original source directory to refresh them.
 
 ```bash
 uv-helper update-all
+```
+
+### `doctor`
+
+Diagnose and repair UV-Helper installation issues.
+
+```bash
+uv-helper doctor [OPTIONS]
+```
+
+**Options:**
+
+- `--repair`: Automatically repair state issues
+
+Displays configuration paths, verifies system dependencies (Git, uv), and validates the state database. Use `--repair` to automatically fix common issues like missing directories or corrupted state.
+
+**Examples:**
+
+```bash
+# Check system health
+uv-helper doctor
+
+# Check and auto-repair issues
+uv-helper doctor --repair
 ```
 
 ## Configuration
