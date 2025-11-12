@@ -7,7 +7,7 @@ from pathlib import Path
 
 from giturlparse import parse as parse_git_url_base
 from giturlparse import validate as validate_git_url
-from pathvalidate import sanitize_filename
+from pathvalidate import ValidationError, sanitize_filename, validate_filename
 from rich.prompt import Confirm
 
 

@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from pathvalidate import ValidationError, validate_filename, validate_filepath
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -403,6 +404,13 @@ class InstallHandler:
         alias: str | None = None,
     ) -> tuple[str, bool, Path | None | str]:
         """Install a single script."""
+        # Validate script_name to prevent path traversal
+        try:
+            validate_filepath(script_name, platform="auto")
+        except ValidationError as e:
+            self.console.print(f"[red]Error:[/red] Invalid script name '{script_name}': {e}")
+            return (script_name, False, f"Invalid script name: {e}")
+
         # For local sources without copy-parent-dir, copy script from source
         if is_local and not copy_parent_dir:
             assert source_path is not None

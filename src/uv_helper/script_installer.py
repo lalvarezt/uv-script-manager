@@ -3,6 +3,8 @@
 import subprocess
 from pathlib import Path
 
+from pathvalidate import ValidationError, validate_filename
+
 from .constants import (
     SCRIPT_METADATA_END,
     SCRIPT_METADATA_SOURCES_SECTION,
@@ -228,6 +230,12 @@ def create_symlink(
         if script_name is None:
             script_name = script_path.name
 
+        # Validate symlink name to prevent path traversal
+        try:
+            validate_filename(script_name, platform="auto")
+        except ValidationError as e:
+            raise ScriptInstallerError(f"Invalid symlink name '{script_name}': {e}") from e
+
         symlink_path = target_dir / script_name
 
         # Security check: if symlink exists, verify it's within target_dir
@@ -266,9 +274,9 @@ def make_executable(script_path: Path) -> bool:
         ScriptInstallerError: If chmod fails
     """
     try:
-        # Add execute permission: chmod +x
+        # Add execute permission for owner only (security best practice)
         current_mode = script_path.stat().st_mode
-        script_path.chmod(current_mode | 0o111)  # Add execute for user, group, other
+        script_path.chmod(current_mode | 0o100)  # Add execute for user only
         return True
     except OSError as e:
         raise ScriptInstallerError(f"Failed to make script executable: {e}") from e

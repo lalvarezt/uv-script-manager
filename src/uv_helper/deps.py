@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from pathvalidate import ValidationError, validate_filepath
+
 
 def parse_requirements_file(requirements_path: Path) -> list[str]:
     """
@@ -73,6 +75,12 @@ def resolve_dependencies(
     if with_arg:
         # Check if it's a file path
         if with_arg.endswith(".txt") or "/" in with_arg or "\\" in with_arg:
+            # Validate the path to prevent path traversal
+            try:
+                validate_filepath(with_arg, platform="auto")
+            except ValidationError as e:
+                raise ValueError(f"Invalid requirements file path '{with_arg}': {e}") from e
+
             last_error: FileNotFoundError | None = None
             for root in search_roots:
                 req_path = root / with_arg
