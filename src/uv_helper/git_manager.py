@@ -116,12 +116,62 @@ def clone_repository(
         raise GitError(f"Failed to clone repository: {e.stderr}") from e
 
 
-def update_repository(repo_path: Path) -> bool:
+def fetch_repository(repo_path: Path, fetch_tags: bool = False) -> bool:
     """
-    Update an existing repository (git pull).
+    Fetch updates from remote repository.
 
     Args:
         repo_path: Path to repository
+        fetch_tags: Whether to fetch tags
+
+    Returns:
+        True if successful
+
+    Raises:
+        GitError: If fetch fails
+    """
+    try:
+        cmd = ["git", "fetch"]
+        if fetch_tags:
+            cmd.append("--tags")
+        run_command(cmd, cwd=repo_path, check=True)
+        return True
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"Failed to fetch repository: {e.stderr}") from e
+
+
+def is_detached_head(repo_path: Path) -> bool:
+    """
+    Check if repository is in detached HEAD state.
+
+    Args:
+        repo_path: Path to repository
+
+    Returns:
+        True if in detached HEAD state
+    """
+    try:
+        result = run_command(
+            ["git", "symbolic-ref", "-q", "HEAD"],
+            cwd=repo_path,
+            check=False,
+        )
+        # Non-zero exit code means detached HEAD
+        return result.returncode != 0
+    except subprocess.CalledProcessError:
+        return True
+
+
+def update_repository(repo_path: Path, ref: str | None = None) -> bool:
+    """
+    Update an existing repository.
+
+    For branches: fetches and pulls changes.
+    For tags/commits: fetches and checks out the ref.
+
+    Args:
+        repo_path: Path to repository
+        ref: Optional specific ref (branch, tag, or commit)
 
     Returns:
         True if successful
@@ -130,9 +180,19 @@ def update_repository(repo_path: Path) -> bool:
         GitError: If update fails
     """
     try:
-        # Pull changes (includes fetch)
-        run_command(["git", "pull"], cwd=repo_path, check=True)
+        # First, always fetch (with tags for tag refs)
+        is_tag_like = bool(ref and (ref.startswith("v") or ref[0].isdigit()))
+        fetch_repository(repo_path, fetch_tags=is_tag_like)
 
+        # If we have a specific ref or are in detached HEAD, checkout the ref
+        if ref or is_detached_head(repo_path):
+            if ref:
+                checkout_ref(repo_path, ref)
+            # Don't pull in detached HEAD state
+            return True
+
+        # For branches, do a pull
+        run_command(["git", "pull"], cwd=repo_path, check=True)
         return True
     except subprocess.CalledProcessError as e:
         raise GitError(f"Failed to update repository: {e.stderr}") from e
@@ -282,10 +342,8 @@ def clone_or_update(
         GitError: If operation fails
     """
     if target_dir.exists():
-        # Repository exists, update it
-        update_repository(target_dir)
-        if ref:
-            checkout_ref(target_dir, ref)
+        # Repository exists, update it with the specific ref
+        update_repository(target_dir, ref)
     else:
         # Clone repository
         clone_repository(url, target_dir, depth=depth, ref=ref)
