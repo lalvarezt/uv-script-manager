@@ -4,15 +4,18 @@
 [![CI](https://github.com/lalvarezt/uv-helper/workflows/CI/badge.svg)](https://github.com/lalvarezt/uv-helper/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A CLI tool to install and manage standalone Python scripts from Git repositories or local directories that lack `setup.py` or `pyproject.toml` files.
+A CLI tool to install and manage standalone Python scripts from Git repositories or local directories that lack
+`setup.py` or `pyproject.toml` files.
 
 ## Overview
 
-UV-Helper bridges a critical gap in [uv](https://github.com/astral-sh/uv)'s functionality by enabling you to install and manage Python scripts directly from Git repositories that don't have proper packaging configuration.
+UV-Helper bridges a critical gap in [uv](https://github.com/astral-sh/uv)'s functionality by enabling you to install and
+manage Python scripts directly from Git repositories that don't have proper packaging configuration.
 
 ### The Problem
 
-Many useful Python scripts exist in Git repositories without `setup.py` or `pyproject.toml` files. Currently, uv cannot directly install these scripts. Users must:
+Many useful Python scripts exist in Git repositories without `setup.py` or `pyproject.toml` files. Currently, uv cannot
+directly install these scripts. Users must:
 
 - Clone repositories manually
 - Navigate directories
@@ -35,7 +38,8 @@ script.py --help
 
 ## Features
 
-- **Direct Git Installation**: Install scripts from any Git repository (GitHub, GitLab, Bitbucket, self-hosted) with one command
+- **Direct Git Installation**: Install scripts from any Git repository (GitHub, GitLab, Bitbucket, self-hosted) with one
+command
 - **Local Directory Support**: Install scripts from local directories on your filesystem
 - **Script Aliasing**: Install scripts with custom names using the `--alias` flag
 - **Git Refs Support**: Install from specific branches, tags, or commits (pinned refs are preserved during updates)
@@ -224,7 +228,8 @@ uv-helper update <script-name> [OPTIONS]
 - `--refresh-deps`: Re-resolve dependencies from the repository's requirements.txt
 - `--exact/--no-exact`: Use `--exact` flag in shebang for precise dependency management (default: from config)
 
-Aliases are automatically preserved when updating scripts. Scripts installed from tags or commits are treated as pinned and will not be updated unless `--force` is used.
+Aliases are automatically preserved when updating scripts. Scripts installed from tags or commits are treated as pinned
+and will not be updated unless `--force` is used.
 
 **Examples:**
 
@@ -249,7 +254,8 @@ uv-helper update-all [OPTIONS]
 - `--exact/--no-exact`: Use `--exact` flag in shebang for precise dependency management (default: from config)
 
 Local installations are skipped automatically (reported as `skipped (local)`) because UV-Helper
-needs access to the original source directory to refresh them. Scripts installed from tags or commits are treated as pinned and reported as `pinned`.
+needs access to the original source directory to refresh them. Scripts installed from tags or commits are treated as
+pinned and reported as `pinned`.
 
 **Examples:**
 
@@ -269,7 +275,8 @@ uv-helper doctor [OPTIONS]
 
 - `--repair`: Automatically repair state issues
 
-Displays configuration paths, verifies system dependencies (Git, uv), and validates the state database. Use `--repair` to automatically fix common issues like missing directories or corrupted state.
+Displays configuration paths, verifies system dependencies (Git, uv), and validates the state database. Use `--repair`
+to automatically fix common issues like missing directories or corrupted state.
 
 **Examples:**
 
@@ -297,7 +304,8 @@ uv-helper browse <source> [OPTIONS]
 
 - `--all`, `-a`: Show all Python files including typically excluded ones (tests, `__init__.py`, etc.)
 
-For GitHub repositories, uses the GitHub API for fast listing without cloning. For other repositories, clones to a cached directory.
+For GitHub repositories, uses the GitHub API for fast listing without cloning. For other repositories, clones to a
+cached directory.
 
 **Examples:**
 
@@ -376,7 +384,8 @@ uv-helper completion <shell>
 
 - `shell`: Shell type (`fish`, `bash`, or `zsh`)
 
-Generates shell-specific completion scripts that provide context-aware suggestions including installed script names for commands like `show`, `remove`, and `update`.
+Generates shell-specific completion scripts that provide context-aware suggestions including installed script names for
+commands like `show`, `remove`, and `update`.
 
 **Examples:**
 
@@ -477,7 +486,9 @@ UV-Helper modifies script shebangs to use uv's script runner with the `--exact` 
 #!/usr/bin/env -S uv run --exact --script
 ```
 
-The `--exact` flag ensures that the script's auto-managed virtual environment precisely matches the dependencies specified in the script's inline metadata. When you remove dependencies from a script, the virtual environment will be automatically cleaned up on the next run.
+The `--exact` flag ensures that the script's auto-managed virtual environment precisely matches the dependencies
+specified in the script's inline metadata. When you remove dependencies from a script, the virtual environment will be
+automatically cleaned up on the next run.
 
 This behavior can be controlled via the `use_exact_flag` configuration option or the `--exact/--no-exact` CLI flags.
 
