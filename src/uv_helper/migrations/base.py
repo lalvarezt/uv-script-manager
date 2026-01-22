@@ -8,7 +8,7 @@ from tinydb import TinyDB
 
 # Current schema version - increment when adding new migrations.
 # This should match the highest version number in the MIGRATIONS list.
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 
 class Migration(ABC):

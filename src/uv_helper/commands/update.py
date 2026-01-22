@@ -206,6 +206,13 @@ class UpdateHandler:
         assert script_info.source_url is not None
         assert script_info.ref is not None
 
+        # Check if this is a pinned ref (tag or commit)
+        is_pinned = script_info.ref_type in ("tag", "commit")
+
+        if is_pinned and not force:
+            # Pinned refs don't get updates - they're intentionally fixed
+            return f"pinned to {script_info.ref}"
+
         with progress_spinner("Updating repository...", self.console):
             clone_or_update(
                 script_info.source_url,
@@ -217,17 +224,17 @@ class UpdateHandler:
         # Check if there are updates
         new_commit_hash = get_current_commit_hash(script_info.repo_path)
 
-        # Get the actual current branch
-        try:
-            actual_branch = get_default_branch(script_info.repo_path)
-        except GitError:
+        # For non-pinned refs, get the actual current branch
+        if not is_pinned:
+            try:
+                actual_branch = get_default_branch(script_info.repo_path)
+            except GitError:
+                actual_branch = script_info.ref
+        else:
+            # Preserve the original pinned ref
             actual_branch = script_info.ref
 
         if new_commit_hash == script_info.commit_hash and not force and not refresh_deps:
-            # Still update the ref in state if it changed
-            if actual_branch != script_info.ref:
-                script_info.ref = actual_branch
-                self.state_manager.add_script(script_info)
             return "up-to-date"
 
         # Resolve dependencies

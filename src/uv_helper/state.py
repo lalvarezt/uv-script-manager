@@ -31,6 +31,7 @@ class ScriptInfo(BaseModel):
     # Git-specific fields (required when source_type=SourceType.GIT)
     source_url: str | None = None
     ref: str | None = None
+    ref_type: str | None = None  # "branch", "tag", "commit", or "default"
     commit_hash: str | None = None
     # Local-specific fields
     source_path: Path | None = None  # Original source path for updates

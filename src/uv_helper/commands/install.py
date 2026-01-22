@@ -453,6 +453,7 @@ class InstallHandler:
                     source_type=SourceType.GIT,
                     source_url=context.git_ref.base_url,
                     ref=context.actual_ref,
+                    ref_type=context.git_ref.ref_type,
                     installed_at=datetime.now(),
                     repo_path=context.repo_path,
                     symlink_path=symlink_path,
