@@ -2,12 +2,20 @@
 
 from pathlib import Path
 
+import requirements
 from pathvalidate import ValidationError, validate_filepath
 
 
 def parse_requirements_file(requirements_path: Path) -> list[str]:
     """
-    Parse requirements.txt file.
+    Parse requirements.txt file using requirements-parser library.
+
+    Handles all pip requirements.txt features including:
+    - `-r` includes (recursive)
+    - `-e` editable installs
+    - `-c` constraints
+    - Environment markers
+    - Extras and version specifiers
 
     Args:
         requirements_path: Path to requirements.txt
@@ -22,12 +30,17 @@ def parse_requirements_file(requirements_path: Path) -> list[str]:
         raise FileNotFoundError(f"Requirements file not found: {requirements_path}")
 
     dependencies = []
-    with open(requirements_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            # Skip comments and empty lines
-            if line and not line.startswith("#"):
-                dependencies.append(line)
+
+    with open(requirements_path, encoding="utf-8") as f:
+        for req in requirements.parse(f):
+            if req.name:
+                # Build the full requirement string
+                dep = req.name
+                if req.extras:
+                    dep += f"[{','.join(req.extras)}]"
+                if req.specs:
+                    dep += ",".join(f"{op}{ver}" for op, ver in req.specs)
+                dependencies.append(dep)
 
     return dependencies
 
