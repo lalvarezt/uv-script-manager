@@ -5,6 +5,39 @@ All notable changes to UV-Helper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-02-06
+
+### Added
+
+- **`show` command**: Display detailed information for an installed script
+- **`browse` command**: List available scripts in a repository before installing, with GitHub API optimization for fast
+listing
+- **`export`/`import` commands**: Back up and restore script installations
+- **`completion` command**: Tab completion support for `fish`, `bash`, and `zsh`
+- **Pinned refs support**: Scripts installed from tags or commits are now treated as pinned and preserved during updates
+- **`--no-deps` flag**: Skip dependency resolution entirely during installation
+- **`--refresh-deps` flag**: Re-resolve dependencies from repository's `requirements.txt` during updates
+- **requirements.txt parsing improvements**: Uses `requirements-parser` library to handle `-r` includes, `-e` editable
+installs, direct URL requirements, environment markers, and complex specifiers
+- **Shadow warning**: Warning displayed when installing a script that shadows an existing system command
+
+### Fixed
+
+- Handle tag and commit refs properly during update (`git pull` fails on detached HEAD)
+- Handle default updates after pinned checkouts by switching detached repositories back to the remote default branch
+- Correctly parse and validate SSH-style Git URLs with `@tag`, `@commit`, and `#branch` ref suffixes
+- Preserve branch/tag/commit ref intent during `import` and `--dry-run` output with `ref_type`-aware URL reconstruction
+- Align legacy ref type inference between migration and import fallback logic for commit-like refs
+- Preserve direct URL requirements and ignore non-install directives (`-c`, `--constraint`, `--index-url`,
+`--extra-index-url`, `--find-links`) when parsing requirements files
+- Display `pinned to <ref>` and `skipped (local)` update statuses as informational instead of errors
+- Explicit `no_deps` parameter in import command for consistency
+
+### Changed
+
+- `browse` command prefers GitHub API listing with a cached clone fallback for non-GitHub repositories or API failures
+- Updated `README` command reference and examples to match implemented CLI commands, flags, and completion setup
+
 ## [1.3.0] - 2025-11-10
 
 ### Added
