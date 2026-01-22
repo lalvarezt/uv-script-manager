@@ -73,6 +73,7 @@ class InstallRequest:
     copy_parent_dir: bool
     add_source_package: str | None
     alias: str | None
+    no_deps: bool = False
 
 
 @dataclass
@@ -149,8 +150,15 @@ class InstallHandler:
                 source, scripts, request.copy_parent_dir
             )
 
-        # Resolve dependencies
-        dependencies = self._resolve_dependencies(request.with_deps, repo_path, source_path, request.verbose)
+        # Resolve dependencies (skip if no_deps flag is set)
+        if request.no_deps:
+            dependencies: list[str] = []
+            if request.verbose:
+                self.console.print("[cyan]Skipping dependency resolution (--no-deps)[/cyan]")
+        else:
+            dependencies = self._resolve_dependencies(
+                request.with_deps, repo_path, source_path, request.verbose
+            )
 
         # Determine installation directory
         install_directory = request.install_dir if request.install_dir else self.config.install_dir

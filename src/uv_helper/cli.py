@@ -100,6 +100,11 @@ def cli(ctx: click.Context, config: Path | None) -> None:
     default=None,
     help="Custom name for the installed script (can only be used with a single script)",
 )
+@click.option(
+    "--no-deps",
+    is_flag=True,
+    help="Skip all dependency resolution (ignore requirements.txt and --with)",
+)
 @click.pass_context
 def install(
     ctx: click.Context,
@@ -114,6 +119,7 @@ def install(
     copy_parent_dir: bool,
     add_source_package: str | None,
     alias: str | None,
+    no_deps: bool,
 ) -> None:
     """
     Install Python scripts from a Git repository or local directory.
@@ -162,6 +168,10 @@ def install(
         \b
         # Install with custom alias
         uv-helper install https://github.com/user/repo --script long_script_name.py --alias short
+
+        \b
+        # Install without any dependencies
+        uv-helper install https://github.com/user/repo --script app.py --no-deps
     """
     config = ctx.obj["config"]
 
@@ -174,7 +184,7 @@ def install(
 
     try:
         request = InstallRequest(
-            with_deps=with_deps,
+            with_deps=None if no_deps else with_deps,
             force=force,
             no_symlink=no_symlink,
             install_dir=install_dir,
@@ -183,6 +193,7 @@ def install(
             copy_parent_dir=copy_parent_dir,
             add_source_package=add_source_package,
             alias=alias,
+            no_deps=no_deps,
         )
         results = handler.install(source=git_url, scripts=script, request=request)
 
