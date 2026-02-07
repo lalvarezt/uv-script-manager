@@ -459,7 +459,7 @@ def test_cli_update_all_reports_local_and_pinned_statuses(tmp_path: Path) -> Non
     result = runner.invoke(cli, ["--config", str(config_path), "update", "--all"])
 
     assert result.exit_code == 0, result.output
-    assert "Local-only" in result.output
+    assert "• Local" in result.output
     assert "Pinned (v1.0.0)" in result.output
 
 
@@ -615,7 +615,6 @@ def test_cli_update_all_dry_run_warns_when_local_changes_present(tmp_path: Path)
     result = runner.invoke(cli, ["--config", str(config_path), "update", "--all", "--dry-run"])
 
     assert result.exit_code == 0, result.output
-    assert "Needs attention (local changes)" in result.output
     assert "Needs attention" in result.output
 
 
@@ -691,8 +690,7 @@ def test_cli_update_all_dry_run_ignores_uv_managed_script_changes(tmp_path: Path
     assert result.exit_code == 0, result.output
     assert "Update available" in result.output
     assert "local custom changes present" not in result.output
-    assert "No" in result.output
-    assert "(managed)" in result.output
+    assert "Managed" in result.output
 
 
 @REQUIRES_UV

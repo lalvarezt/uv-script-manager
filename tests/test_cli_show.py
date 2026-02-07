@@ -195,4 +195,4 @@ def test_cli_show_reports_uv_managed_changes_as_non_blocking(tmp_path: Path) -> 
 
     assert result.exit_code == 0, result.output
     assert "Local changes:" in result.output
-    assert "No (managed)" in result.output
+    assert "Managed" in result.output

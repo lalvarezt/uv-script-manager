@@ -74,7 +74,7 @@ def test_cli_local_install_update_and_remove(tmp_path: Path, monkeypatch) -> Non
 
     update_all_result = runner.invoke(cli, ["update", "--all"])
     assert update_all_result.exit_code == 0, update_all_result.output
-    assert "Local-only" in update_all_result.output
+    assert "• Local" in update_all_result.output
 
     remove_result = runner.invoke(cli, ["remove", script_rel], input="y\n")
     assert remove_result.exit_code == 0, remove_result.output

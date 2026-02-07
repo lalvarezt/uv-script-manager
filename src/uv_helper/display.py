@@ -8,27 +8,93 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from . import local_changes
 from .constants import SourceType
-from .local_changes import get_local_change_state
 from .state import ScriptInfo
+
+
+def _normalize_status_key(status_key: str) -> str:
+    """Normalize status aliases to canonical script-status keys."""
+    normalized = status_key.strip().lower()
+    aliases = {
+        "blocking": "needs-attention",
+        "needs attention": "needs-attention",
+        "needs_attention": "needs-attention",
+        "local-only": "local",
+        "skipped (local)": "local",
+        "no": "clean",
+        "up-to-date": "clean",
+        "no (managed)": "managed",
+    }
+    normalized = aliases.get(normalized, normalized)
+    known = {"clean", "pinned", "local", "needs-attention", "managed", "unknown", "git"}
+    return normalized if normalized in known else "unknown"
+
+
+def _local_change_state_to_status_key(local_state: str) -> str:
+    """Map local-change state values to canonical script-status keys."""
+    normalized = local_state.strip().lower()
+    if normalized in ("blocking", "needs attention", "yes"):
+        return "needs-attention"
+    if normalized in ("managed", "no (managed)"):
+        return "managed"
+    if normalized in ("clean", "no"):
+        return "clean"
+    return "unknown"
+
+
+def get_script_status_key(script: ScriptInfo, local_changes_cache: dict[tuple[Path, str], str]) -> str:
+    """Derive canonical status key used in list/show/doctor displays."""
+    if script.source_type == SourceType.LOCAL:
+        return "local"
+
+    if script.ref_type in ("tag", "commit"):
+        return "pinned"
+
+    script_key = (script.repo_path, script.name)
+    if script_key not in local_changes_cache:
+        local_changes_cache[script_key] = local_changes.get_local_change_state(script.repo_path, script.name)
+
+    return _local_change_state_to_status_key(local_changes_cache[script_key])
+
+
+def render_script_status(status_key: str, detail: str | None = None) -> str:
+    """Render a canonical script status with consistent rich styling."""
+    status_key = _normalize_status_key(status_key)
+    labels = {
+        "clean": "[green]• Clean[/green]",
+        "pinned": "[yellow]• Pinned[/yellow]",
+        "local": "[dim]• Local[/dim]",
+        "needs-attention": "[#ff8c00]• Needs attention[/]",
+        "managed": "[green]• Managed[/green]",
+        "unknown": "[dim]• Unknown[/dim]",
+        "git": "[cyan]• Git[/cyan]",
+    }
+    rendered = labels[status_key]
+    if detail:
+        return f"{rendered} [dim]({detail})[/dim]"
+    return rendered
 
 
 def _render_local_changes_state(local_state: str) -> str:
     """Render local change state with consistent labels and styles."""
-    if local_state in ("blocking", "Needs attention", "Yes"):
-        return "[#ff8c00]Needs attention[/]"
-    if local_state in ("managed", "No (managed)"):
-        return "[green]No (managed)[/green]"
-    if local_state in ("clean", "No"):
-        return "[green]No[/green]"
     if local_state in ("N/A", "n/a"):
         return "[dim]N/A[/dim]"
-    return "[dim]Unknown[/dim]"
+    status_key = _local_change_state_to_status_key(local_state)
+    if status_key == "unknown":
+        return "[dim]• Unknown[/dim]"
+    if status_key == "managed":
+        return render_script_status("managed")
+    if status_key == "clean":
+        return render_script_status("clean")
+    if status_key == "needs-attention":
+        return render_script_status("needs-attention")
+    return "[dim]• Unknown[/dim]"
 
 
 def _get_list_column_max_widths(console: Console, verbose: bool, full: bool) -> dict[str, int | None]:
     """Return adaptive max widths for list table columns."""
-    keys = ("script", "source", "ref", "updated", "commit", "local_changes", "dependencies")
+    keys = ("script", "status", "source", "ref", "updated", "commit", "local_changes", "dependencies")
     if full:
         return {key: None for key in keys}
 
@@ -36,6 +102,7 @@ def _get_list_column_max_widths(console: Console, verbose: bool, full: bool) -> 
     if verbose:
         return {
             "script": max(16, min(30, width // 6)),
+            "status": max(14, min(20, width // 8)),
             "source": max(18, min(36, width // 4)),
             "ref": max(8, min(16, width // 10)),
             "updated": 16,
@@ -46,6 +113,7 @@ def _get_list_column_max_widths(console: Console, verbose: bool, full: bool) -> 
 
     return {
         "script": max(16, min(34, width // 4)),
+        "status": max(14, min(20, width // 8)),
         "source": max(18, min(44, width // 3)),
         "ref": max(8, min(18, width // 8)),
         "updated": 16,
@@ -124,6 +192,12 @@ def display_scripts_table(
         no_wrap=not full,
     )
     table.add_column(
+        "Status",
+        max_width=widths["status"],
+        overflow=overflow,
+        no_wrap=not full,
+    )
+    table.add_column(
         "Source",
         style="magenta",
         max_width=widths["source"],
@@ -189,8 +263,13 @@ def display_scripts_table(
             source_display = str(script.source_path) if script.source_path else "local"
             ref_display = "N/A"
 
+        status_key = get_script_status_key(script, local_changes_by_script)
+        status_detail = script.ref if status_key == "pinned" else None
+        status_display = render_script_status(status_key, status_detail)
+
         row = [
             script_display,
+            status_display,
             source_display,
             ref_display,
             script.installed_at.strftime("%Y-%m-%d %H:%M"),
@@ -201,7 +280,7 @@ def display_scripts_table(
             if script.source_type == SourceType.GIT:
                 script_key = (script.repo_path, script.name)
                 if script_key not in local_changes_by_script:
-                    local_changes_by_script[script_key] = get_local_change_state(
+                    local_changes_by_script[script_key] = local_changes.get_local_change_state(
                         script.repo_path, script.name
                     )
                 local_state = local_changes_by_script[script_key]
@@ -247,31 +326,24 @@ def display_update_results(
         if status == "updated":
             status_text = "[green]✓ Updated[/green]"
         elif status == "up-to-date":
-            status_text = "[blue]✓ Up-to-date[/blue]"
+            status_text = render_script_status("clean")
         elif status == "would update":
             status_text = "[cyan]• Update available[/cyan]"
         elif status in (
             "would update (local custom changes present)",
             "would update (local changes present)",
         ):
-            status_text = "[#ff8c00]• Needs attention (local changes)[/]"
+            status_text = render_script_status("needs-attention")
         elif status == "skipped (local)":
-            status_text = "[dim]• Local-only[/dim]"
+            status_text = render_script_status("local")
         elif status.startswith("pinned to "):
-            status_text = f"[yellow]• Pinned ({status.removeprefix('pinned to ')})[/yellow]"
+            status_text = render_script_status("pinned", status.removeprefix("pinned to "))
         elif status.startswith("Error:"):
             status_text = f"[red]✗ {status}[/red]"
         else:
             status_text = f"[yellow]• {status}[/yellow]"
 
-        if local_changes in ("Needs attention", "Yes"):
-            local_changes_text = "[#ff8c00]Needs attention[/]"
-        elif local_changes in ("No", "No (managed)"):
-            local_changes_text = f"[green]{local_changes}[/green]"
-        elif local_changes in ("Unknown", "N/A"):
-            local_changes_text = f"[dim]{local_changes}[/dim]"
-        else:
-            local_changes_text = local_changes
+        local_changes_text = _render_local_changes_state(local_changes)
 
         if show_local_changes:
             table.add_row(script_name, status_text, local_changes_text)
@@ -299,13 +371,18 @@ def display_script_details(script: ScriptInfo, console: Console) -> None:
     if script.symlink_path and script.symlink_path.name != script.name:
         table.add_row("Alias:", f"[cyan]{script.symlink_path.name}[/cyan]")
 
+    status_cache: dict[tuple[Path, str], str] = {}
+    status_key = get_script_status_key(script, status_cache)
+    status_detail = script.ref if status_key == "pinned" else None
+    table.add_row("Status:", render_script_status(status_key, status_detail))
+
     # Source info
     if script.source_type == SourceType.GIT:
         table.add_row("Source type:", "Git repository")
         table.add_row("Source URL:", f"[magenta]{script.source_url}[/magenta]")
         table.add_row("Ref:", f"[green]{script.ref or 'default'}[/green]")
         table.add_row("Commit:", f"[blue]{script.commit_hash or 'N/A'}[/blue]")
-        local_state = get_local_change_state(script.repo_path, script.name)
+        local_state = local_changes.get_local_change_state(script.repo_path, script.name)
         local_changes_display = _render_local_changes_state(local_state)
         table.add_row("Local changes:", local_changes_display)
     else:

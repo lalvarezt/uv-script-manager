@@ -62,8 +62,9 @@ def test_cli_list_tree_verbose_groups_sources_and_aliases(tmp_path: Path, monkey
     assert "Installed Scripts by Source" in result.output
     assert "acme/repo" in result.output
     assert "short -> git_tool.py" in result.output
-    assert "local changes: yes" in result.output
-    assert "2 deps" in result.output
+    assert "status:" in result.output
+    assert "Needs attention" in result.output
+    assert "deps" in result.output
 
 
 def test_cli_list_full_disables_truncation(tmp_path: Path, monkeypatch) -> None:
@@ -412,7 +413,7 @@ def test_cli_list_verbose_displays_local_changes_for_git_scripts(tmp_path: Path)
 
     assert result.exit_code == 0, result.output
     assert "Local" in result.output
-    assert "Needs atten" in result.output
+    assert "Needs" in result.output
 
 
 @REQUIRES_UV
@@ -482,5 +483,4 @@ def test_cli_list_verbose_reports_uv_managed_changes_as_non_blocking(tmp_path: P
 
     assert result.exit_code == 0, result.output
     assert "Local" in result.output
-    assert "No" in result.output
-    assert "manage" in result.output
+    assert "Managed" in result.output

@@ -27,6 +27,8 @@ from .display import (
     display_script_details,
     display_scripts_table,
     display_update_results,
+    get_script_status_key,
+    render_script_status,
 )
 from .script_installer import ScriptInstallerError, verify_uv_available
 from .state import StateManager
@@ -196,27 +198,7 @@ def _prompt_for_script_selection(candidates: list[str]) -> tuple[str, ...]:
 
 def _get_list_status(script, local_changes_cache: dict[tuple[Path, str], str]) -> str:
     """Derive list status label used for filtering and sorting."""
-    from .constants import SourceType
-    from .local_changes import get_local_change_state
-
-    if script.source_type == SourceType.LOCAL:
-        return "local"
-
-    if script.ref_type in ("tag", "commit"):
-        return "pinned"
-
-    script_key = (script.repo_path, script.name)
-    if script_key not in local_changes_cache:
-        local_changes_cache[script_key] = get_local_change_state(script.repo_path, script.name)
-
-    local_state = local_changes_cache[script_key]
-    if local_state == "blocking":
-        return "needs-attention"
-    if local_state == "managed":
-        return "managed"
-    if local_state == "clean":
-        return "clean"
-    return "unknown"
+    return get_script_status_key(script, local_changes_cache)
 
 
 def _filter_and_sort_scripts(
@@ -660,7 +642,6 @@ def list_scripts(
     from rich.tree import Tree
 
     from .constants import SourceType
-    from .local_changes import get_local_change_state
 
     config = ctx.obj["config"]
     state_manager = StateManager(config.state_file)
@@ -725,24 +706,11 @@ def list_scripts(
                 if verbose:
                     # Show detailed info in verbose mode
                     details = []
+                    status_key = _get_list_status(script, local_changes_by_script)
+                    status_detail = script.ref if status_key == "pinned" else None
+                    details.append(f"status: {render_script_status(status_key, status_detail)}")
                     if script.commit_hash:
                         details.append(f"commit: {script.commit_hash}")
-                    if script.source_type == SourceType.GIT:
-                        script_key = (script.repo_path, script.name)
-                        if script_key not in local_changes_by_script:
-                            local_changes_by_script[script_key] = get_local_change_state(
-                                script.repo_path,
-                                script.name,
-                            )
-                        local_state = local_changes_by_script[script_key]
-                        if local_state == "unknown":
-                            details.append("[dim]local changes: unknown[/dim]")
-                        elif local_state == "blocking":
-                            details.append("[#ff8c00]local changes: yes[/]")
-                        elif local_state == "managed":
-                            details.append("[green]local changes: no (managed)[/green]")
-                        else:
-                            details.append("[green]local changes: no[/green]")
                     if script.dependencies:
                         details.append(f"{len(script.dependencies)} deps")
                     details.append(f"installed: {script.installed_at.strftime('%Y-%m-%d')}")
@@ -1523,9 +1491,9 @@ def doctor(ctx: click.Context, repair: bool) -> None:
     issues = state_manager.validate_state()
 
     if not issues:
-        console.print("[green]✓[/green] No issues found - state is healthy")
+        console.print(f"{render_script_status('clean')} No issues found - state is healthy")
     else:
-        console.print(f"[yellow]![/yellow] Found {len(issues)} issue(s):\n")
+        console.print(f"{render_script_status('needs-attention')} Found {len(issues)} issue(s):\n")
         for issue in issues:
             console.print(f"  • {issue}")
 
@@ -1541,6 +1509,29 @@ def doctor(ctx: click.Context, repair: bool) -> None:
                 console.print(f"  • Removed {removed_count} missing script(s) from database")
         else:
             console.print("\n[dim]Run 'uv-helper doctor --repair' to fix these issues[/dim]")
+
+    # Script status section
+    console.print("\n[bold]Script Status[/bold]")
+    scripts = state_manager.list_scripts()
+    if not scripts:
+        console.print("[dim]No scripts installed.[/dim]")
+    else:
+        status_counts: dict[str, int] = {}
+        local_changes_cache: dict[tuple[Path, str], str] = {}
+        for script in scripts:
+            status_key = _get_list_status(script, local_changes_cache)
+            status_counts[status_key] = status_counts.get(status_key, 0) + 1
+
+        status_table = Table(show_header=False, box=None, padding=(0, 2))
+        status_table.add_column("Status")
+        status_table.add_column("Count", justify="right")
+
+        for status_key in ("needs-attention", "pinned", "local", "clean", "managed", "unknown"):
+            count = status_counts.get(status_key, 0)
+            if count:
+                status_table.add_row(render_script_status(status_key), str(count))
+
+        console.print(status_table)
 
     console.print()
 
