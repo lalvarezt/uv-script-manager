@@ -161,7 +161,7 @@ def test_cli_local_install_update_and_remove(tmp_path: Path, monkeypatch) -> Non
 
     update_all_result = runner.invoke(cli, ["update", "--all"])
     assert update_all_result.exit_code == 0, update_all_result.output
-    assert "skipped (local)" in update_all_result.output
+    assert "Local-only" in update_all_result.output
 
     remove_result = runner.invoke(cli, ["remove", script_rel], input="y\n")
     assert remove_result.exit_code == 0, remove_result.output
@@ -236,10 +236,47 @@ def test_cli_install_with_add_source_package(tmp_path: Path, monkeypatch) -> Non
 
 
 def test_cli_install_requires_script_flag() -> None:
-    """Test that install command requires --script flag."""
+    """Install without --script should fail in non-interactive mode."""
     runner = CliRunner()
     result = runner.invoke(cli, ["install", "https://github.com/user/repo"])
     assert result.exit_code != 0
+    assert "--script is required in non-interactive mode" in result.output
+
+
+def test_cli_install_prompts_for_script_when_interactive(tmp_path: Path, monkeypatch) -> None:
+    """Install should prompt for script selection when --script is omitted in TTY mode."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    monkeypatch.setattr("uv_helper.cli._is_interactive_terminal", lambda: True)
+    monkeypatch.setattr(
+        "uv_helper.cli._discover_install_script_candidates",
+        lambda source, clone_depth: ["a.py", "pkg/b.py"],
+    )
+
+    captured: dict[str, tuple[str, ...]] = {}
+
+    def fake_install(self, source: str, scripts: tuple[str, ...], request):
+        captured["scripts"] = scripts
+        return [(scripts[0], True, install_dir / scripts[0])]
+
+    monkeypatch.setattr("uv_helper.cli.InstallHandler.install", fake_install)
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "install", "https://github.com/user/repo"],
+        input="2\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["scripts"] == ("pkg/b.py",)
 
 
 def test_cli_install_invalid_source(tmp_path: Path, monkeypatch) -> None:
@@ -667,8 +704,8 @@ def test_cli_update_all_reports_local_and_pinned_statuses(tmp_path: Path) -> Non
     result = runner.invoke(cli, ["--config", str(config_path), "update", "--all"])
 
     assert result.exit_code == 0, result.output
-    assert "skipped (local)" in result.output
-    assert "pinned to v1.0.0" in result.output
+    assert "Local-only" in result.output
+    assert "Pinned (v1.0.0)" in result.output
 
 
 @REQUIRES_UV
@@ -718,7 +755,7 @@ def test_cli_update_all_dry_run_reports_would_update_without_mutation(tmp_path: 
     assert result.exit_code == 0, result.output
     assert "Local" in result.output
     assert "changes" in result.output
-    assert "would update" in result.output
+    assert "Update available" in result.output
     assert "Unknown" in result.output
     assert not script_repo.exists()
 
@@ -762,8 +799,8 @@ def test_cli_update_all_dry_run_refresh_deps_marks_pinned_as_would_update(tmp_pa
     )
 
     assert result.exit_code == 0, result.output
-    assert "would update" in result.output
-    assert "pinned to v1.0.0" not in result.output
+    assert "Update available" in result.output
+    assert "Pinned (v1.0.0)" not in result.output
 
 
 @REQUIRES_UV
@@ -825,8 +862,8 @@ def test_cli_update_all_dry_run_warns_when_local_changes_present(tmp_path: Path)
     result = runner.invoke(cli, ["--config", str(config_path), "update", "--all", "--dry-run"])
 
     assert result.exit_code == 0, result.output
-    assert "would update (local custom changes present)" in result.output
-    assert "Yes" in result.output
+    assert "Needs attention (local changes)" in result.output
+    assert "Needs attention" in result.output
 
 
 @REQUIRES_UV
@@ -901,7 +938,7 @@ def test_cli_update_all_dry_run_ignores_uv_managed_script_changes(tmp_path: Path
     result = runner.invoke(cli, ["--config", str(config_path), "update", "--all", "--dry-run"])
 
     assert result.exit_code == 0, result.output
-    assert "would update" in result.output
+    assert "Update available" in result.output
     assert "local custom changes present" not in result.output
     assert "No" in result.output
     assert "(managed)" in result.output
@@ -1122,11 +1159,11 @@ def test_cli_show_displays_local_changes_for_git_scripts(tmp_path: Path) -> None
 
     assert result.exit_code == 0, result.output
     assert "Local changes:" in result.output
-    assert "Yes" in result.output
+    assert "Needs attention" in result.output
 
 
-def test_cli_list_verbose_falls_back_on_narrow_width_when_enabled(tmp_path: Path, monkeypatch) -> None:
-    """list --verbose should fallback to non-verbose output on narrow terminals when enabled."""
+def test_cli_list_verbose_ignores_fallback_config_on_narrow_width(tmp_path: Path, monkeypatch) -> None:
+    """list --verbose should stay verbose even when fallback config is enabled."""
     runner = CliRunner()
 
     repo_dir = tmp_path / "repos"
@@ -1155,21 +1192,20 @@ def test_cli_list_verbose_falls_back_on_narrow_width_when_enabled(tmp_path: Path
         )
     )
 
-    result = runner.invoke(cli, ["--config", str(config_path), "list", "--verbose"])
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--verbose"],
+        terminal_width=180,
+    )
 
     assert result.exit_code == 0, result.output
-    assert "Warning:" in result.output
-    assert "too narrow" in result.output
-    assert "Falling back" in result.output
-    assert "minimum 200 columns" in result.output
-    assert result.output.count("┳") == 3
-    assert "Commit" not in result.output
-    assert "Dependencies" not in result.output
-    assert "tool.py" in result.output
+    assert "Falling back" not in result.output
+    assert result.output.count("┳") == 6
+    assert "Local" in result.output
 
 
-def test_cli_list_verbose_no_fallback_on_narrow_width_by_default(tmp_path: Path, monkeypatch) -> None:
-    """list --verbose should remain verbose by default, even on narrow terminals."""
+def test_cli_list_full_disables_truncation(tmp_path: Path, monkeypatch) -> None:
+    """list --full should show untruncated values on narrow terminals."""
     runner = CliRunner()
 
     repo_dir = tmp_path / "repos"
@@ -1188,17 +1224,25 @@ def test_cli_list_verbose_no_fallback_on_narrow_width_by_default(tmp_path: Path,
             installed_at=datetime.now(),
             repo_path=repo_dir / "tool-repo",
             source_path=tmp_path,
+            dependencies=["verylongdependencyname_" * 5],
         )
     )
 
-    result = runner.invoke(cli, ["--config", str(config_path), "list", "--verbose"])
+    narrow_result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--verbose"],
+        terminal_width=80,
+    )
+    full_result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--verbose", "--full"],
+        terminal_width=240,
+    )
 
-    assert result.exit_code == 0, result.output
-    assert "Falling back" not in result.output
-    assert result.output.count("┳") == 6
-    assert "Commit" in result.output
-    assert "Dependenci" in result.output
-    assert "tool.py" in result.output
+    assert narrow_result.exit_code == 0, narrow_result.output
+    assert full_result.exit_code == 0, full_result.output
+    assert "…" in narrow_result.output
+    assert "…" not in full_result.output
 
 
 @REQUIRES_UV
@@ -1247,13 +1291,15 @@ def test_cli_list_verbose_displays_local_changes_for_git_scripts(tmp_path: Path)
         )
     )
 
-    result = runner.invoke(cli, ["--config", str(config_path), "list", "--verbose"])
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--verbose"],
+        terminal_width=180,
+    )
 
     assert result.exit_code == 0, result.output
     assert "Local" in result.output
-    assert "changes" in result.output
-    assert "tool.py" in result.output
-    assert "Yes" in result.output
+    assert "Needs atten" in result.output
 
 
 @REQUIRES_UV
@@ -1383,13 +1429,16 @@ def test_cli_list_verbose_reports_uv_managed_changes_as_non_blocking(tmp_path: P
         )
     )
 
-    result = runner.invoke(cli, ["--config", str(config_path), "list", "--verbose"])
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--verbose"],
+        terminal_width=180,
+    )
 
     assert result.exit_code == 0, result.output
     assert "Local" in result.output
-    assert "changes" in result.output
     assert "No" in result.output
-    assert "(managed)" in result.output
+    assert "manage" in result.output
 
 
 @REQUIRES_UV
@@ -1637,7 +1686,7 @@ def test_cli_update_refresh_deps_runs_for_pinned_git_scripts(tmp_path: Path) -> 
     )
 
     assert result.exit_code == 0, result.output
-    assert "pinned to v1.0.0" not in result.output
+    assert "Pinned (v1.0.0)" not in result.output
     assert "Updated" in result.output
 
     updated = StateManager(state_file).get_script("tool.py")

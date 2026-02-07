@@ -72,6 +72,126 @@ def complete_script_names(
         return []
 
 
+def _is_install_candidate(path: Path) -> bool:
+    """Check whether a Python file is a likely installable script."""
+    excluded_files = {
+        "__init__.py",
+        "__main__.py",
+        "setup.py",
+        "conftest.py",
+        "noxfile.py",
+        "fabfile.py",
+    }
+    excluded_prefixes = ("test_", "_")
+    excluded_suffixes = ("_test.py",)
+    excluded_dirs = {"__pycache__", "venv", ".venv", "node_modules"}
+
+    parts = path.parts
+    if any(part.startswith(".") for part in parts):
+        return False
+    if any(part in excluded_dirs for part in parts):
+        return False
+    if path.name in excluded_files:
+        return False
+    if path.name.startswith(excluded_prefixes):
+        return False
+    return not path.name.endswith(excluded_suffixes)
+
+
+def _discover_install_script_candidates(source: str, clone_depth: int) -> list[str]:
+    """Discover candidate script paths for interactive install mode."""
+    import tempfile
+
+    from .git_manager import GitError, clone_or_update, parse_git_url
+    from .utils import expand_path, is_git_url, is_local_directory
+
+    def _collect_from_root(root: Path) -> list[str]:
+        candidates: list[str] = []
+        for py_file in root.rglob("*.py"):
+            rel_path = py_file.relative_to(root)
+            if _is_install_candidate(rel_path):
+                candidates.append(rel_path.as_posix())
+        return sorted(candidates)
+
+    if is_local_directory(source):
+        return _collect_from_root(expand_path(source))
+
+    if is_git_url(source):
+        parsed = parse_git_url(source)
+        with tempfile.TemporaryDirectory(prefix="uv-helper-install-") as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            try:
+                clone_or_update(
+                    parsed.base_url,
+                    parsed.ref_value,
+                    repo_path,
+                    depth=clone_depth,
+                    ref_type=parsed.ref_type,
+                )
+            except GitError as e:
+                raise ValueError(str(e)) from e
+            return _collect_from_root(repo_path)
+
+    return []
+
+
+def _parse_script_selection(selection: str, max_index: int) -> list[int]:
+    """Parse comma-separated numeric selections and ranges."""
+    indexes: list[int] = []
+    seen: set[int] = set()
+
+    for token in selection.split(","):
+        token = token.strip()
+        if not token:
+            continue
+
+        if "-" in token:
+            start_str, end_str = token.split("-", 1)
+            if not start_str.isdigit() or not end_str.isdigit():
+                raise ValueError(f"Invalid range: {token}")
+            start = int(start_str)
+            end = int(end_str)
+            if start > end:
+                raise ValueError(f"Invalid range: {token}")
+            values = range(start, end + 1)
+        else:
+            if not token.isdigit():
+                raise ValueError(f"Invalid selection: {token}")
+            values = [int(token)]
+
+        for value in values:
+            if value < 1 or value > max_index:
+                raise ValueError(f"Selection out of range: {value}")
+            if value not in seen:
+                seen.add(value)
+                indexes.append(value)
+
+    if not indexes:
+        raise ValueError("No selections provided")
+
+    return indexes
+
+
+def _is_interactive_terminal() -> bool:
+    """Return True when running in an interactive terminal."""
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _prompt_for_script_selection(candidates: list[str]) -> tuple[str, ...]:
+    """Prompt user to select one or more scripts from candidates."""
+    console.print("[bold]No --script provided. Select script(s) to install:[/bold]")
+    for index, script_path in enumerate(candidates, start=1):
+        console.print(f"  [cyan]{index:>2}[/cyan]. {script_path}")
+
+    while True:
+        selection = click.prompt("Select script number(s)", default="1", show_default=True)
+        try:
+            indexes = _parse_script_selection(selection, len(candidates))
+            return tuple(candidates[index - 1] for index in indexes)
+        except ValueError as e:
+            console.print(f"[red]Error:[/red] {e}. Enter values like [cyan]1[/cyan] or [cyan]1,3-5[/cyan].")
+
+
 @click.group()
 @click.version_option(version=__version__)
 @click.option(
@@ -105,7 +225,6 @@ def cli(ctx: click.Context, config: Path | None) -> None:
     "--script",
     "-s",
     multiple=True,
-    required=True,
     help="Script names to install (can be specified multiple times)",
 )
 @click.option(
@@ -217,8 +336,39 @@ def install(
     """
     config = ctx.obj["config"]
 
+    selected_scripts = script
+
+    if not selected_scripts:
+        from .utils import is_git_url, is_local_directory
+
+        if not (is_local_directory(git_url) or is_git_url(git_url)):
+            console.print(f"[red]Error:[/red] Invalid source: {git_url}")
+            console.print("Source must be either a Git URL or a local directory path.")
+            sys.exit(1)
+
+        if not _is_interactive_terminal():
+            console.print("[red]Error:[/red] --script is required in non-interactive mode.")
+            console.print(
+                "Use [cyan]uv-helper install <source> --script <script.py>[/cyan], "
+                "or run [cyan]uv-helper browse <source>[/cyan] first."
+            )
+            sys.exit(1)
+
+        try:
+            candidates = _discover_install_script_candidates(git_url, config.clone_depth)
+        except ValueError as e:
+            console.print(f"[red]Error:[/red] Failed to discover scripts: {e}")
+            sys.exit(1)
+
+        if not candidates:
+            console.print("[red]Error:[/red] No installable Python scripts found in source.")
+            console.print("Try [cyan]uv-helper browse <source> --all[/cyan] to inspect all Python files.")
+            sys.exit(1)
+
+        selected_scripts = _prompt_for_script_selection(candidates)
+
     # Validate --alias flag usage
-    if alias is not None and len(script) != 1:
+    if alias is not None and len(selected_scripts) != 1:
         console.print("[red]Error:[/red] --alias can only be used when installing a single script")
         sys.exit(1)
 
@@ -237,10 +387,17 @@ def install(
             alias=alias,
             no_deps=no_deps,
         )
-        results = handler.install(source=git_url, scripts=script, request=request)
+        results = handler.install(source=git_url, scripts=selected_scripts, request=request)
 
         install_directory = install_dir if install_dir else config.install_dir
         display_install_results(results, install_directory, console)
+
+        installed_scripts = [name for name, success, _ in results if success]
+        if installed_scripts:
+            if len(installed_scripts) == 1:
+                console.print(f"[dim]Next: uv-helper show {installed_scripts[0]} | uv-helper list[/dim]")
+            else:
+                console.print("[dim]Next: uv-helper list --verbose[/dim]")
     except (ValueError, FileNotFoundError, NotADirectoryError):
         sys.exit(1)
 
@@ -253,8 +410,9 @@ def install(
     help="Show detailed information (commit hash, local changes, dependencies)",
 )
 @click.option("--tree", is_flag=True, help="Display scripts grouped by source in a tree view")
+@click.option("--full", is_flag=True, help="Disable truncation for table columns")
 @click.pass_context
-def list_scripts(ctx: click.Context, verbose: bool, tree: bool) -> None:
+def list_scripts(ctx: click.Context, verbose: bool, tree: bool, full: bool) -> None:
     """
     List all installed scripts with their details.
 
@@ -278,6 +436,10 @@ def list_scripts(ctx: click.Context, verbose: bool, tree: bool) -> None:
         \b
         # Tree view with verbose details
         uv-helper list --tree -v
+
+        \b
+        # Show full values without truncation
+        uv-helper list --verbose --full
     """
     from rich.tree import Tree
 
@@ -292,15 +454,6 @@ def list_scripts(ctx: click.Context, verbose: bool, tree: bool) -> None:
     if not scripts:
         console.print("No scripts installed.")
         return
-
-    if verbose and config.list_verbose_fallback and console.width < config.list_min_width:
-        console.print(
-            "[yellow]Warning:[/yellow] Terminal width "
-            f"({console.width}) is too narrow for [cyan]uv-helper list --verbose[/cyan] "
-            f"output (minimum {config.list_min_width} columns). Falling back to "
-            "[cyan]uv-helper list[/cyan]."
-        )
-        verbose = False
 
     if tree:
         # Group scripts by source
@@ -373,7 +526,7 @@ def list_scripts(ctx: click.Context, verbose: bool, tree: bool) -> None:
 
         console.print(tree_view)
     else:
-        display_scripts_table(scripts, verbose, console)
+        display_scripts_table(scripts, verbose, console, full)
 
 
 @cli.command()
@@ -445,6 +598,7 @@ def remove(
 
     try:
         handler.remove(script_name, clean_repo, force)
+        console.print("[dim]Next: uv-helper list[/dim]")
     except (ValueError, ScriptInstallerError):
         sys.exit(1)
 
@@ -529,6 +683,13 @@ def update(
 
         if results:
             display_update_results(results, console)
+            if dry_run:
+                console.print("[dim]Re-run without --dry-run to apply updates.[/dim]")
+            elif all_scripts:
+                console.print("[dim]Next: uv-helper list --verbose[/dim]")
+            else:
+                assert script_name is not None
+                console.print(f"[dim]Next: uv-helper show {script_name}[/dim]")
     except (ValueError, FileNotFoundError, ScriptInstallerError):
         sys.exit(1)
 

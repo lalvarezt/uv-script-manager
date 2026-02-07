@@ -13,6 +13,48 @@ from .local_changes import get_local_change_state
 from .state import ScriptInfo
 
 
+def _render_local_changes_state(local_state: str) -> str:
+    """Render local change state with consistent labels and styles."""
+    if local_state in ("blocking", "Needs attention", "Yes"):
+        return "[#ff8c00]Needs attention[/]"
+    if local_state in ("managed", "No (managed)"):
+        return "[green]No (managed)[/green]"
+    if local_state in ("clean", "No"):
+        return "[green]No[/green]"
+    if local_state in ("N/A", "n/a"):
+        return "[dim]N/A[/dim]"
+    return "[dim]Unknown[/dim]"
+
+
+def _get_list_column_max_widths(console: Console, verbose: bool, full: bool) -> dict[str, int | None]:
+    """Return adaptive max widths for list table columns."""
+    keys = ("script", "source", "ref", "updated", "commit", "local_changes", "dependencies")
+    if full:
+        return {key: None for key in keys}
+
+    width = max(console.width, 80)
+    if verbose:
+        return {
+            "script": max(16, min(30, width // 6)),
+            "source": max(18, min(36, width // 4)),
+            "ref": max(8, min(16, width // 10)),
+            "updated": 16,
+            "commit": max(8, min(12, width // 11)),
+            "local_changes": max(14, min(20, width // 7)),
+            "dependencies": max(16, min(36, width // 4)),
+        }
+
+    return {
+        "script": max(16, min(34, width // 4)),
+        "source": max(18, min(44, width // 3)),
+        "ref": max(8, min(18, width // 8)),
+        "updated": 16,
+        "commit": None,
+        "local_changes": None,
+        "dependencies": None,
+    }
+
+
 def display_install_results(
     results: list[tuple[str, bool, Path | None | str]],
     install_dir: Path,
@@ -60,6 +102,7 @@ def display_scripts_table(
     scripts: list[ScriptInfo],
     verbose: bool,
     console: Console,
+    full: bool = False,
 ) -> None:
     """
     Display installed scripts in a table.
@@ -69,16 +112,59 @@ def display_scripts_table(
         verbose: Whether to show detailed information
         console: Rich console instance for output
     """
+    widths = _get_list_column_max_widths(console, verbose, full)
+    overflow = "fold" if full else "ellipsis"
+
     table = Table(title="Installed Scripts")
-    table.add_column("Script", style="cyan")
-    table.add_column("Source", style="magenta")
-    table.add_column("Ref", style="green")
-    table.add_column("Updated", style="yellow")
+    table.add_column(
+        "Script",
+        style="cyan",
+        max_width=widths["script"],
+        overflow=overflow,
+        no_wrap=not full,
+    )
+    table.add_column(
+        "Source",
+        style="magenta",
+        max_width=widths["source"],
+        overflow=overflow,
+        no_wrap=not full,
+    )
+    table.add_column(
+        "Ref",
+        style="green",
+        max_width=widths["ref"],
+        overflow=overflow,
+        no_wrap=not full,
+    )
+    table.add_column(
+        "Updated",
+        style="yellow",
+        max_width=widths["updated"],
+        overflow=overflow,
+        no_wrap=True,
+    )
 
     if verbose:
-        table.add_column("Commit", style="blue")
-        table.add_column("Local changes")
-        table.add_column("Dependencies")
+        table.add_column(
+            "Commit",
+            style="blue",
+            max_width=widths["commit"],
+            overflow=overflow,
+            no_wrap=not full,
+        )
+        table.add_column(
+            "Local changes",
+            max_width=widths["local_changes"],
+            overflow=overflow,
+            no_wrap=not full,
+        )
+        table.add_column(
+            "Dependencies",
+            max_width=widths["dependencies"],
+            overflow=overflow,
+            no_wrap=not full,
+        )
 
     local_changes_by_script: dict[tuple[Path, str], str] = {}
 
@@ -95,7 +181,8 @@ def display_scripts_table(
 
         # Display source based on type
         if script.source_type == SourceType.GIT and script.source_url:
-            source_display = script.source_url.split("/")[-2:][0] + "/" + script.source_url.split("/")[-1]
+            source_parts = script.source_url.rstrip("/").split("/")
+            source_display = "/".join(source_parts[-2:]) if len(source_parts) >= 2 else script.source_url
             ref_display = script.ref or "N/A"
         else:
             # Local source
@@ -118,16 +205,9 @@ def display_scripts_table(
                         script.repo_path, script.name
                     )
                 local_state = local_changes_by_script[script_key]
-                if local_state == "unknown":
-                    local_changes_display = "[dim]Unknown[/dim]"
-                elif local_state == "blocking":
-                    local_changes_display = "[#ff8c00]Yes[/]"
-                elif local_state == "managed":
-                    local_changes_display = "[green]No (managed)[/green]"
-                else:
-                    local_changes_display = "[green]No[/green]"
+                local_changes_display = _render_local_changes_state(local_state)
             else:
-                local_changes_display = "[dim]N/A[/dim]"
+                local_changes_display = _render_local_changes_state("N/A")
 
             row.append(commit_display)
             row.append(local_changes_display)
@@ -169,23 +249,23 @@ def display_update_results(
         elif status == "up-to-date":
             status_text = "[blue]✓ Up-to-date[/blue]"
         elif status == "would update":
-            status_text = "[cyan]• would update[/cyan]"
+            status_text = "[cyan]• Update available[/cyan]"
         elif status in (
             "would update (local custom changes present)",
             "would update (local changes present)",
         ):
-            status_text = "[#ff8c00]• would update (local custom changes present)[/]"
+            status_text = "[#ff8c00]• Needs attention (local changes)[/]"
         elif status == "skipped (local)":
-            status_text = "[dim]• skipped (local)[/dim]"
+            status_text = "[dim]• Local-only[/dim]"
         elif status.startswith("pinned to "):
-            status_text = f"[yellow]• {status}[/yellow]"
+            status_text = f"[yellow]• Pinned ({status.removeprefix('pinned to ')})[/yellow]"
         elif status.startswith("Error:"):
             status_text = f"[red]✗ {status}[/red]"
         else:
             status_text = f"[yellow]• {status}[/yellow]"
 
-        if local_changes == "Yes":
-            local_changes_text = "[#ff8c00]Yes[/]"
+        if local_changes in ("Needs attention", "Yes"):
+            local_changes_text = "[#ff8c00]Needs attention[/]"
         elif local_changes in ("No", "No (managed)"):
             local_changes_text = f"[green]{local_changes}[/green]"
         elif local_changes in ("Unknown", "N/A"):
@@ -226,14 +306,7 @@ def display_script_details(script: ScriptInfo, console: Console) -> None:
         table.add_row("Ref:", f"[green]{script.ref or 'default'}[/green]")
         table.add_row("Commit:", f"[blue]{script.commit_hash or 'N/A'}[/blue]")
         local_state = get_local_change_state(script.repo_path, script.name)
-        if local_state == "unknown":
-            local_changes_display = "[dim]Unknown[/dim]"
-        elif local_state == "blocking":
-            local_changes_display = "[#ff8c00]Yes[/]"
-        elif local_state == "managed":
-            local_changes_display = "[green]No (managed)[/green]"
-        else:
-            local_changes_display = "[green]No[/green]"
+        local_changes_display = _render_local_changes_state(local_state)
         table.add_row("Local changes:", local_changes_display)
     else:
         table.add_row("Source type:", "Local directory")

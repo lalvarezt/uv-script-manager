@@ -388,7 +388,7 @@ class UpdateHandler:
     def _format_local_changes_label(local_change_state: str) -> str:
         """Format local change state for update table display."""
         if local_change_state == "blocking":
-            return "Yes"
+            return "Needs attention"
         if local_change_state == "managed":
             return "No (managed)"
         if local_change_state == "clean":

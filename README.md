@@ -111,12 +111,15 @@ uv-helper remove script.py
 Install Python scripts from a Git repository or local directory.
 
 ```bash
-uv-helper install <source> --script <script.py> [--script <more.py> ...] [OPTIONS]
+uv-helper install <source> [--script <script.py> ...] [OPTIONS]
 ```
 
 **Arguments:**
 
 - `source`: Git repository URL or local directory path (Git URLs support `@tag`, `@commit`, `#branch` suffixes)
+
+If `--script` is omitted in an interactive terminal, UV-Helper prompts you to select scripts from discovered
+candidates. In non-interactive environments, `--script` is required.
 
 **Options:**
 
@@ -176,9 +179,7 @@ uv-helper list [OPTIONS]
 
 - `--verbose`, `-v`: Show detailed information (commit hash, local changes, and dependencies)
 - `--tree`: Display scripts grouped by source in a tree view
-
-If your terminal is too narrow, `--verbose` can optionally fall back to regular `uv-helper list` output with a warning.
-This is controlled by `commands.list.verbose_fallback` and `commands.list.min_width`, and is disabled by default.
+- `--full`: Disable truncation and show full table values
 
 **Examples:**
 
@@ -258,8 +259,8 @@ uv-helper update [<script-name>] [OPTIONS]
 Aliases are automatically preserved when updating scripts. Scripts installed from tags or commits are treated as pinned
 and will not move to a different ref unless `--force` is used.
 
-When using `--all`, local installations are skipped automatically (reported as `skipped (local)`) because UV-Helper
-needs access to the original source directory to refresh them. Pinned refs are reported as `pinned to <ref>` unless
+When using `--all`, local installations are skipped automatically (reported as `Local-only`) because UV-Helper
+needs access to the original source directory to refresh them. Pinned refs are reported as `Pinned (<ref>)` unless
 `--force` or `--refresh-deps` is used. Dry-run output includes a `Local changes` column.
 
 **Examples:**
@@ -448,11 +449,11 @@ auto_chmod = true
 use_exact_flag = true
 
 [commands.list]
-# If true, fallback from `uv-helper list --verbose` to `uv-helper list` when terminal is narrow
+# Legacy compatibility options (currently ignored)
 verbose_fallback = false
 
-# Minimum terminal width required for `uv-helper list --verbose`
-min_width = 100
+# Legacy compatibility options (currently ignored)
+min_width = 120
 ```
 
 ### Custom Configuration
