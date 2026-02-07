@@ -5,7 +5,7 @@ import re
 from rich.console import Console
 from tinydb import TinyDB
 
-from ..constants import DB_TABLE_SCRIPTS
+from ...constants import DB_TABLE_SCRIPTS
 from .base import Migration
 
 console = Console()

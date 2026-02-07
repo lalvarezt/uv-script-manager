@@ -3,7 +3,7 @@
 from rich.console import Console
 from tinydb import TinyDB
 
-from ..constants import DB_TABLE_SCRIPTS, SourceType
+from ...constants import DB_TABLE_SCRIPTS, SourceType
 from .base import Migration
 
 console = Console()

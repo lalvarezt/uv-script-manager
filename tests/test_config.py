@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-import uv_helper.config as config_module
+import uv_helper.migrations.config.base as config_migrations_base
 from uv_helper.config import (
     CURRENT_CONFIG_SCHEMA_VERSION,
     DEFAULT_CONFIG_TEMPLATE_PATH,
@@ -260,7 +260,7 @@ state_file = "{tmp_path / "state.json"}"
         def should_not_run(data):  # pragma: no cover - guard against unexpected call
             raise AssertionError("migration should not run")
 
-        monkeypatch.setitem(config_module.CONFIG_MIGRATIONS, 1, should_not_run)
+        monkeypatch.setitem(config_migrations_base.MIGRATIONS, 1, should_not_run)
 
         config = load_config(config_file)
 

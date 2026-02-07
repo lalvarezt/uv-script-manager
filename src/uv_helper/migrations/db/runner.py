@@ -7,7 +7,7 @@ from pathlib import Path
 from rich.console import Console
 from tinydb import TinyDB
 
-from ..constants import DB_METADATA_DOC_ID, DB_TABLE_METADATA, METADATA_KEY_SCHEMA_VERSION
+from ...constants import DB_METADATA_DOC_ID, DB_TABLE_METADATA, METADATA_KEY_SCHEMA_VERSION
 from .base import CURRENT_SCHEMA_VERSION, Migration
 
 console = Console()
@@ -82,21 +82,6 @@ class MigrationRunner:
             self.metadata.insert(
                 {METADATA_KEY_SCHEMA_VERSION: migration.version, "migrations": applied_str_keys}
             )
-
-    def set_schema_version(self, version: int) -> None:
-        """
-        Set schema version in database.
-
-        DEPRECATED: Use mark_migration_applied() instead for new code.
-
-        Args:
-            version: Schema version to set
-        """
-        # Use update if doc exists, otherwise insert
-        if self.metadata.get(doc_id=DB_METADATA_DOC_ID):
-            self.metadata.update({METADATA_KEY_SCHEMA_VERSION: version}, doc_ids=[DB_METADATA_DOC_ID])
-        else:
-            self.metadata.insert({METADATA_KEY_SCHEMA_VERSION: version})
 
     def needs_migration(self) -> bool:
         """

@@ -5,17 +5,25 @@ import os
 import shutil
 import tomllib
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import tomli_w
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .migrations.config import (
+    CURRENT_SCHEMA_VERSION as CURRENT_CONFIG_SCHEMA_VERSION,
+)
+from .migrations.config import (
+    merge_config_data,
+)
+from .migrations.config import (
+    run_migrations as run_config_migrations,
+)
 from .utils import ensure_dir, expand_path
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_TEMPLATE_PATH = Path(__file__).with_name("config.toml")
-CURRENT_CONFIG_SCHEMA_VERSION = 1
 
 
 def _load_default_template() -> dict[str, Any]:
@@ -24,99 +32,10 @@ def _load_default_template() -> dict[str, Any]:
         return tomllib.load(f)
 
 
-def _merge_config_data(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Merge config dictionaries recursively."""
-    merged = dict(base)
-    for key, value in override.items():
-        base_value = merged.get(key)
-        if isinstance(base_value, dict) and isinstance(value, dict):
-            merged[key] = _merge_config_data(base_value, value)
-        else:
-            merged[key] = value
-    return merged
-
-
 def _copy_default_config(config_path: Path) -> None:
     """Copy repository template to the user config path."""
     ensure_dir(config_path.parent)
     shutil.copyfile(DEFAULT_CONFIG_TEMPLATE_PATH, config_path)
-
-
-def _migration_001_nested_layout(data: dict[str, Any]) -> dict[str, Any]:
-    """Migration #1: Move legacy top-level sections into nested layout."""
-    migrated = dict(data)
-
-    legacy_paths = migrated.pop("paths", None)
-    legacy_git = migrated.pop("git", None)
-    legacy_install = migrated.pop("install", None)
-    legacy_display = migrated.pop("display", None)
-
-    legacy_mapped: dict[str, Any] = {}
-
-    if isinstance(legacy_paths, dict):
-        legacy_mapped.setdefault("global", {}).setdefault("paths", {}).update(legacy_paths)
-
-    if isinstance(legacy_git, dict):
-        legacy_mapped.setdefault("global", {}).setdefault("git", {}).update(legacy_git)
-
-    if isinstance(legacy_install, dict):
-        legacy_mapped.setdefault("global", {}).setdefault("install", {}).update(legacy_install)
-
-    if isinstance(legacy_display, dict):
-        list_section = legacy_mapped.setdefault("commands", {}).setdefault("list", {})
-
-        if "list_verbose_fallback_on_narrow_width" in legacy_display:
-            list_section["verbose_fallback"] = legacy_display["list_verbose_fallback_on_narrow_width"]
-
-        if "list_min_width" in legacy_display:
-            list_section["min_width"] = legacy_display["list_min_width"]
-
-    # If both legacy and new keys are present, keep the new layout values.
-    return _merge_config_data(legacy_mapped, migrated)
-
-
-CONFIG_MIGRATIONS: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {
-    1: _migration_001_nested_layout,
-}
-
-
-def _get_config_schema_version(data: dict[str, Any]) -> int:
-    """Get config schema version from metadata section."""
-    meta = data.get("meta")
-    if not isinstance(meta, dict):
-        return 0
-
-    version = meta.get("schema_version", 0)
-    if isinstance(version, int) and version >= 0:
-        return version
-
-    return 0
-
-
-def _set_config_schema_version(data: dict[str, Any], version: int) -> None:
-    """Set config schema version in metadata section."""
-    meta = data.get("meta")
-    if not isinstance(meta, dict):
-        meta = {}
-        data["meta"] = meta
-    meta["schema_version"] = version
-
-
-def _run_config_migrations(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
-    """Run pending config migrations based on schema version."""
-    current_version = _get_config_schema_version(data)
-    if current_version >= CURRENT_CONFIG_SCHEMA_VERSION:
-        return data, False
-
-    migrated = dict(data)
-
-    for version in range(current_version + 1, CURRENT_CONFIG_SCHEMA_VERSION + 1):
-        migration = CONFIG_MIGRATIONS.get(version)
-        if migration is not None:
-            migrated = migration(migrated)
-        _set_config_schema_version(migrated, version)
-
-    return migrated, True
 
 
 def _save_config(config_path: Path, data: dict[str, Any]) -> None:
@@ -289,14 +208,14 @@ def load_config(config_path: Path | None = None) -> Config:
         with open(config_path, "rb") as f:
             data = tomllib.load(f)
 
-        data, was_migrated = _run_config_migrations(data)
+        data, was_migrated = run_config_migrations(data)
         if was_migrated:
             try:
                 _save_config(config_path, data)
             except (OSError, PermissionError) as e:
                 logger.warning(f"Could not save migrated config to {config_path}: {e}")
 
-        merged_values = _merge_config_data(defaults, data)
+        merged_values = merge_config_data(defaults, data)
         return Config.model_validate(merged_values)
 
     return Config.model_validate(defaults)
