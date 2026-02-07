@@ -10,7 +10,7 @@ import pytest
 from click.testing import CliRunner
 
 from uv_helper.cli import cli
-from uv_helper.constants import SourceType
+from uv_helper.constants import GIT_SHORT_HASH_LENGTH, SourceType
 from uv_helper.state import ScriptInfo, StateManager
 
 REQUIRES_UV = pytest.mark.skipif(shutil.which("uv") is None, reason="uv command required")
@@ -601,6 +601,310 @@ def test_cli_update_all_reports_local_and_pinned_statuses(tmp_path: Path) -> Non
 
 
 @REQUIRES_UV
+@REQUIRES_GIT
+def test_cli_update_all_dry_run_reports_would_update_without_mutation(tmp_path: Path) -> None:
+    """Dry-run update-all should report updates without modifying state or cloning."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    origin = _create_origin_repo_with_tag(tmp_path)
+    (origin / "tool.py").write_text("print('v2')\n", encoding="utf-8")
+    _run_git(origin, "add", "tool.py")
+    _run_git(
+        origin,
+        "-c",
+        "user.name=Test User",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-m",
+        "second",
+    )
+    old_commit = _run_git(origin, "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "v1.0.0")
+
+    script_repo = repo_dir / "tool-repo"
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.GIT,
+            source_url=str(origin),
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            commit_hash=old_commit,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "update-all", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "Local" in result.output
+    assert "changes" in result.output
+    assert "would update" in result.output
+    assert "Unknown" in result.output
+    assert not script_repo.exists()
+
+    reloaded = StateManager(state_file).get_script("tool.py")
+    assert reloaded is not None
+    assert reloaded.commit_hash == old_commit
+
+
+@REQUIRES_UV
+@REQUIRES_GIT
+def test_cli_update_all_dry_run_refresh_deps_marks_pinned_as_would_update(tmp_path: Path) -> None:
+    """Dry-run with --refresh-deps should report pinned refs as would update."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    origin = _create_origin_repo_with_tag(tmp_path)
+    pinned_commit = _run_git(origin, "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "v1.0.0")
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="pinned.py",
+            source_type=SourceType.GIT,
+            source_url=str(origin),
+            ref="v1.0.0",
+            ref_type="tag",
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "pinned-repo",
+            commit_hash=pinned_commit,
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "update-all", "--dry-run", "--refresh-deps"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "would update" in result.output
+    assert "pinned to v1.0.0" not in result.output
+
+
+@REQUIRES_UV
+@REQUIRES_GIT
+def test_cli_update_all_dry_run_warns_when_local_changes_present(tmp_path: Path) -> None:
+    """Dry-run should warn when local repo changes may block an update."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    origin = _create_origin_repo_with_tag(tmp_path)
+
+    script_repo = repo_dir / "tool-repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "clone", str(origin), str(script_repo)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    installed_commit = _run_git(script_repo, "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "HEAD")
+
+    # Leave local uncommitted changes in the tracked script.
+    (script_repo / "tool.py").write_text("print('local change')\n", encoding="utf-8")
+
+    # Add a conflicting remote update so a real pull can be blocked.
+    (origin / "tool.py").write_text("print('remote update')\n", encoding="utf-8")
+    _run_git(origin, "add", "tool.py")
+    _run_git(
+        origin,
+        "-c",
+        "user.name=Test User",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-m",
+        "remote second",
+    )
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.GIT,
+            source_url=str(origin),
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            commit_hash=installed_commit,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "update-all", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "would update (local custom changes present)" in result.output
+    assert "Yes" in result.output
+
+
+@REQUIRES_UV
+@REQUIRES_GIT
+def test_cli_update_all_dry_run_ignores_uv_managed_script_changes(tmp_path: Path) -> None:
+    """Dry-run should not flag uv-managed shebang/metadata changes as custom."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    origin = _create_origin_repo_with_tag(tmp_path)
+
+    script_repo = repo_dir / "tool-repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "clone", str(origin), str(script_repo)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    installed_commit = _run_git(script_repo, "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "HEAD")
+
+    # Emulate uv-managed script transformations.
+    (script_repo / "tool.py").write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env -S uv run --exact --script",
+                "# /// script",
+                "# dependencies = [",
+                '#     "requests",',
+                "# ]",
+                "# ///",
+                "print('v1')",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    # Add a remote update.
+    (origin / "tool.py").write_text("print('v2')\n", encoding="utf-8")
+    _run_git(origin, "add", "tool.py")
+    _run_git(
+        origin,
+        "-c",
+        "user.name=Test User",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-m",
+        "remote second",
+    )
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.GIT,
+            source_url=str(origin),
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            commit_hash=installed_commit,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "update-all", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "would update" in result.output
+    assert "local custom changes present" not in result.output
+    assert "No" in result.output
+    assert "(managed)" in result.output
+
+
+@REQUIRES_UV
+@REQUIRES_GIT
+def test_cli_update_clears_managed_changes_and_reapplies_shebang(tmp_path: Path) -> None:
+    """Update should clear uv-managed local changes and reapply shebang after pull."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    origin = _create_origin_repo_with_tag(tmp_path)
+
+    script_repo = repo_dir / "tool-repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "clone", str(origin), str(script_repo)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    installed_commit = _run_git(script_repo, "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "HEAD")
+
+    # Emulate a prior uv-managed shebang modification in the working tree.
+    (script_repo / "tool.py").write_text(
+        "#!/usr/bin/env -S uv run --exact --script\nprint('v1')\n",
+        encoding="utf-8",
+    )
+
+    # Add a remote update.
+    (origin / "tool.py").write_text("print('v2')\n", encoding="utf-8")
+    _run_git(origin, "add", "tool.py")
+    _run_git(
+        origin,
+        "-c",
+        "user.name=Test User",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-m",
+        "remote second",
+    )
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.GIT,
+            source_url=str(origin),
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            commit_hash=installed_commit,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "update", "tool.py"])
+
+    assert result.exit_code == 0, result.output
+    assert "Updated" in result.output
+
+    updated_content = (script_repo / "tool.py").read_text(encoding="utf-8")
+    assert updated_content.splitlines()[0] == "#!/usr/bin/env -S uv run --exact --script"
+    assert "v2" in updated_content
+
+
+@REQUIRES_UV
 def test_cli_export_import_roundtrip_local_install_no_deps(tmp_path: Path) -> None:
     """Exported local installs should import cleanly with no extra mocking."""
     runner = CliRunner()
@@ -695,6 +999,250 @@ def test_cli_show_displays_ref_and_commit_for_git_scripts(tmp_path: Path) -> Non
     assert "v2.0.0" in result.output
     assert "Commit:" in result.output
     assert "abc12345" in result.output
+
+
+@REQUIRES_UV
+@REQUIRES_GIT
+def test_cli_show_displays_local_changes_for_git_scripts(tmp_path: Path) -> None:
+    """show should display local uncommitted changes state for git scripts."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    script_repo = repo_dir / "tool-repo"
+    script_repo.mkdir(parents=True)
+    _run_git(script_repo, "init", "-b", "main")
+    (script_repo / "tool.py").write_text("print('v1')\n", encoding="utf-8")
+    _run_git(script_repo, "add", "tool.py")
+    _run_git(
+        script_repo,
+        "-c",
+        "user.name=Test User",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-m",
+        "initial",
+    )
+    commit_hash = _run_git(script_repo, "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "HEAD")
+
+    # Create uncommitted local changes.
+    (script_repo / "tool.py").write_text("print('dirty')\n", encoding="utf-8")
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.GIT,
+            source_url="https://github.com/user/repo",
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            commit_hash=commit_hash,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "show", "tool.py"])
+
+    assert result.exit_code == 0, result.output
+    assert "Local changes:" in result.output
+    assert "Yes" in result.output
+
+
+@REQUIRES_UV
+@REQUIRES_GIT
+def test_cli_list_verbose_displays_local_changes_for_git_scripts(tmp_path: Path) -> None:
+    """list --verbose should include local changes status for git scripts."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    script_repo = repo_dir / "tool-repo"
+    script_repo.mkdir(parents=True)
+    _run_git(script_repo, "init", "-b", "main")
+    (script_repo / "tool.py").write_text("print('v1')\n", encoding="utf-8")
+    _run_git(script_repo, "add", "tool.py")
+    _run_git(
+        script_repo,
+        "-c",
+        "user.name=Test User",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-m",
+        "initial",
+    )
+    commit_hash = _run_git(script_repo, "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "HEAD")
+
+    # Create uncommitted local changes.
+    (script_repo / "tool.py").write_text("print('dirty')\n", encoding="utf-8")
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.GIT,
+            source_url="https://github.com/user/repo",
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            commit_hash=commit_hash,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "list", "--verbose"])
+
+    assert result.exit_code == 0, result.output
+    assert "Local" in result.output
+    assert "changes" in result.output
+    assert "tool.py" in result.output
+    assert "Yes" in result.output
+
+
+@REQUIRES_UV
+@REQUIRES_GIT
+def test_cli_show_reports_uv_managed_changes_as_non_blocking(tmp_path: Path) -> None:
+    """show should report uv-managed script changes as non-blocking local changes."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    script_repo = repo_dir / "tool-repo"
+    script_repo.mkdir(parents=True)
+    _run_git(script_repo, "init", "-b", "main")
+    (script_repo / "tool.py").write_text("print('v1')\n", encoding="utf-8")
+    _run_git(script_repo, "add", "tool.py")
+    _run_git(
+        script_repo,
+        "-c",
+        "user.name=Test User",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-m",
+        "initial",
+    )
+    commit_hash = _run_git(script_repo, "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "HEAD")
+
+    # Emulate uv-managed script content changes only.
+    (script_repo / "tool.py").write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env -S uv run --exact --script",
+                "# /// script",
+                "# dependencies = [",
+                '#     "requests",',
+                "# ]",
+                "# ///",
+                "print('v1')",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.GIT,
+            source_url="https://github.com/user/repo",
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            commit_hash=commit_hash,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "show", "tool.py"])
+
+    assert result.exit_code == 0, result.output
+    assert "Local changes:" in result.output
+    assert "No (managed)" in result.output
+
+
+@REQUIRES_UV
+@REQUIRES_GIT
+def test_cli_list_verbose_reports_uv_managed_changes_as_non_blocking(tmp_path: Path) -> None:
+    """list --verbose should report uv-managed changes as non-blocking."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    script_repo = repo_dir / "tool-repo"
+    script_repo.mkdir(parents=True)
+    _run_git(script_repo, "init", "-b", "main")
+    (script_repo / "tool.py").write_text("print('v1')\n", encoding="utf-8")
+    _run_git(script_repo, "add", "tool.py")
+    _run_git(
+        script_repo,
+        "-c",
+        "user.name=Test User",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-m",
+        "initial",
+    )
+    commit_hash = _run_git(script_repo, "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "HEAD")
+
+    # Emulate uv-managed script content changes only.
+    (script_repo / "tool.py").write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env -S uv run --exact --script",
+                "# /// script",
+                "# dependencies = [",
+                '#     "requests",',
+                "# ]",
+                "# ///",
+                "print('v1')",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.GIT,
+            source_url="https://github.com/user/repo",
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            commit_hash=commit_hash,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "list", "--verbose"])
+
+    assert result.exit_code == 0, result.output
+    assert "Local" in result.output
+    assert "changes" in result.output
+    assert "No" in result.output
+    assert "(managed)" in result.output
 
 
 @REQUIRES_UV

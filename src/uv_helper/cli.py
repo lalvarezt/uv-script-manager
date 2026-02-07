@@ -247,7 +247,10 @@ def install(
 
 @cli.command("list")
 @click.option(
-    "-v", "--verbose", is_flag=True, help="Show detailed information (commit hash and dependencies)"
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Show detailed information (commit hash, local changes, dependencies)",
 )
 @click.option("--tree", is_flag=True, help="Display scripts grouped by source in a tree view")
 @click.pass_context
@@ -265,7 +268,7 @@ def list_scripts(ctx: click.Context, verbose: bool, tree: bool) -> None:
         uv-helper list
 
         \b
-        # List with verbose output showing commit hash and dependencies
+        # List with verbose output showing commit hash, local changes, and dependencies
         uv-helper list -v
 
         \b
@@ -279,6 +282,7 @@ def list_scripts(ctx: click.Context, verbose: bool, tree: bool) -> None:
     from rich.tree import Tree
 
     from .constants import SourceType
+    from .local_changes import get_local_change_state
 
     config = ctx.obj["config"]
     state_manager = StateManager(config.state_file)
@@ -292,6 +296,7 @@ def list_scripts(ctx: click.Context, verbose: bool, tree: bool) -> None:
     if tree:
         # Group scripts by source
         groups: dict[str, list] = {}
+        local_changes_by_script: dict[tuple[Path, str], str] = {}
         for script in scripts:
             if script.source_type == SourceType.GIT:
                 key = script.source_url or "unknown"
@@ -331,6 +336,22 @@ def list_scripts(ctx: click.Context, verbose: bool, tree: bool) -> None:
                     details = []
                     if script.commit_hash:
                         details.append(f"commit: {script.commit_hash}")
+                    if script.source_type == SourceType.GIT:
+                        script_key = (script.repo_path, script.name)
+                        if script_key not in local_changes_by_script:
+                            local_changes_by_script[script_key] = get_local_change_state(
+                                script.repo_path,
+                                script.name,
+                            )
+                        local_state = local_changes_by_script[script_key]
+                        if local_state == "unknown":
+                            details.append("[dim]local changes: unknown[/dim]")
+                        elif local_state == "blocking":
+                            details.append("[#ff8c00]local changes: yes[/]")
+                        elif local_state == "managed":
+                            details.append("[green]local changes: no (managed)[/green]")
+                        else:
+                            details.append("[green]local changes: no[/green]")
                     if script.dependencies:
                         details.append(f"{len(script.dependencies)} deps")
                     details.append(f"installed: {script.installed_at.strftime('%Y-%m-%d')}")
@@ -477,8 +498,15 @@ def update(ctx: click.Context, script_name: str, force: bool, exact: bool | None
     is_flag=True,
     help="Re-resolve dependencies from repository (reads requirements.txt again)",
 )
+@click.option("--dry-run", is_flag=True, help="Show what would be updated without applying changes")
 @click.pass_context
-def update_all(ctx: click.Context, force: bool, exact: bool | None, refresh_deps: bool) -> None:
+def update_all(
+    ctx: click.Context,
+    force: bool,
+    exact: bool | None,
+    refresh_deps: bool,
+    dry_run: bool,
+) -> None:
     """
     Update all installed scripts to their latest versions.
 
@@ -499,12 +527,16 @@ def update_all(ctx: click.Context, force: bool, exact: bool | None, refresh_deps
         \b
         # Update all and re-resolve dependencies from requirements.txt
         uv-helper update-all --refresh-deps
+
+        \b
+        # Preview updates without changing anything
+        uv-helper update-all --dry-run
     """
     config = ctx.obj["config"]
     handler = UpdateHandler(config, console)
 
     try:
-        results = handler.update_all(force, exact, refresh_deps)
+        results = handler.update_all(force, exact, refresh_deps, dry_run)
         if results:
             display_update_results(results, console)
     except ScriptInstallerError:

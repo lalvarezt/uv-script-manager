@@ -174,7 +174,7 @@ uv-helper list [OPTIONS]
 
 **Options:**
 
-- `--verbose`, `-v`: Show detailed information (commit hash and dependencies)
+- `--verbose`, `-v`: Show detailed information (commit hash, local changes, and dependencies)
 - `--tree`: Display scripts grouped by source in a tree view
 
 **Examples:**
@@ -274,15 +274,20 @@ uv-helper update-all [OPTIONS]
 - `-f, --force`: Force reinstall all scripts
 - `--refresh-deps`: Re-resolve dependencies from each repository's `requirements.txt`
 - `--exact/--no-exact`: Use `--exact` flag in shebang for precise dependency management (default: from config)
+- `--dry-run`: Show what would be updated without applying changes
 
 Local installations are skipped automatically (reported as `skipped (local)`) because UV-Helper
 needs access to the original source directory to refresh them. Scripts installed from tags or commits are treated as
 pinned and reported as `pinned to <ref>` when running without `--force` or `--refresh-deps`.
+When a repository has local custom changes, dry-run may report `would update (local custom changes present)`.
+UV-managed shebang/metadata edits are treated as non-blocking and reapplied during update.
+Dry-run output includes a `Local changes` column (`Yes`, `No`, `No (managed)`, or `Unknown`).
 
 **Examples:**
 
 ```bash
 uv-helper update-all
+uv-helper update-all --dry-run
 ```
 
 ### `doctor`
