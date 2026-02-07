@@ -402,6 +402,39 @@ def test_cli_update_rejects_script_name_with_all(tmp_path: Path, monkeypatch) ->
     assert "Cannot use SCRIPT_NAME and --all together" in result.output
 
 
+def test_cli_update_all_prints_impact_summary(tmp_path: Path, monkeypatch) -> None:
+    """update --all should print a compact impact summary."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="local.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "local-repo",
+            source_path=tmp_path,
+        )
+    )
+
+    result = runner.invoke(cli, ["update", "--all", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "Impact:" in result.output
+    assert "update --all" in result.output
+    assert "Scripts: 1" in result.output
+    assert "Mode: dry-run" in result.output
+
+
 def test_cli_update_all_alias_is_hidden_but_still_available(tmp_path: Path, monkeypatch) -> None:
     """update-all should remain callable as a hidden compatibility alias."""
     runner = CliRunner()
@@ -419,6 +452,57 @@ def test_cli_update_all_alias_is_hidden_but_still_available(tmp_path: Path, monk
     alias_result = runner.invoke(cli, ["update-all"])
     assert alias_result.exit_code == 0, alias_result.output
     assert "No scripts installed." in alias_result.output
+
+
+def test_cli_remove_clean_repo_prints_impact_summary(tmp_path: Path, monkeypatch) -> None:
+    """remove --clean-repo should print a compact impact summary."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    shared_repo = repo_dir / "shared"
+    shared_repo.mkdir(parents=True)
+    script_a = shared_repo / "a.py"
+    script_b = shared_repo / "b.py"
+    script_a.write_text("print('a')\n", encoding="utf-8")
+    script_b.write_text("print('b')\n", encoding="utf-8")
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="a.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=shared_repo,
+            source_path=tmp_path,
+        )
+    )
+    state_manager.add_script(
+        ScriptInfo(
+            name="b.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=shared_repo,
+            source_path=tmp_path,
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["remove", "a.py", "--clean-repo", "--force"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Impact:" in result.output
+    assert "remove --clean-repo" in result.output
+    assert "shared by 1 other script" in result.output
 
 
 def test_cli_local_update_without_copy_parent_dir(tmp_path: Path, monkeypatch) -> None:

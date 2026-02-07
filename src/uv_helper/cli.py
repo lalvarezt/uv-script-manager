@@ -334,6 +334,42 @@ def _update_results_to_json(results: list[tuple[str, str] | tuple[str, str, str]
     return payload
 
 
+def _print_update_all_impact_summary(state_manager: StateManager, dry_run: bool) -> None:
+    """Print compact impact summary for update --all."""
+    scripts = state_manager.list_scripts()
+    if not scripts:
+        return
+
+    local_count = sum(1 for script in scripts if script.source_type.value == "local")
+    git_count = len(scripts) - local_count
+    pinned_count = sum(1 for script in scripts if script.ref_type in ("tag", "commit"))
+
+    console.print("[bold]Impact:[/bold] update --all")
+    console.print(f"  Scripts: {len(scripts)} ({git_count} git, {local_count} local-only)")
+    if pinned_count:
+        console.print(
+            "  Pinned refs: "
+            f"{pinned_count} (stay pinned unless [cyan]--force[/cyan] or [cyan]--refresh-deps[/cyan])"
+        )
+    if dry_run:
+        console.print("  Mode: dry-run")
+
+
+def _print_remove_clean_repo_impact_summary(state_manager: StateManager, script_name: str) -> None:
+    """Print compact impact summary for remove --clean-repo."""
+    script_info = state_manager.get_script_flexible(script_name)
+    if script_info is None:
+        return
+
+    scripts_from_repo = state_manager.get_scripts_from_repo(script_info.repo_path)
+    remaining = max(len(scripts_from_repo) - 1, 0)
+    repo_action = "will be removed" if remaining == 0 else f"kept (shared by {remaining} other script(s))"
+
+    console.print("[bold]Impact:[/bold] remove --clean-repo")
+    console.print(f"  Script: {script_info.display_name}")
+    console.print(f"  Repository: {script_info.repo_path} ({repo_action})")
+
+
 @click.group()
 @click.version_option(version=__version__)
 @click.option(
@@ -787,6 +823,11 @@ def remove(
         uv-helper remove myscript --force
     """
     config = ctx.obj["config"]
+    state_manager = StateManager(config.state_file)
+
+    if clean_repo:
+        _print_remove_clean_repo_impact_summary(state_manager, script_name)
+
     handler = RemoveHandler(config, console)
 
     try:
@@ -867,6 +908,11 @@ def update(
         sys.exit(1)
 
     config = ctx.obj["config"]
+    state_manager = StateManager(config.state_file)
+
+    if all_scripts and not json_output:
+        _print_update_all_impact_summary(state_manager, dry_run)
+
     handler = UpdateHandler(config, console)
 
     try:
