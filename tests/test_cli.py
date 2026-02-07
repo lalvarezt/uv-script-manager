@@ -1245,6 +1245,151 @@ def test_cli_list_full_disables_truncation(tmp_path: Path, monkeypatch) -> None:
     assert "…" not in full_result.output
 
 
+def test_cli_list_filters_by_source_ref_and_status(tmp_path: Path, monkeypatch) -> None:
+    """list should filter entries by source, ref, and status."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="local.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "local-repo",
+            source_path=tmp_path / "local-src",
+        )
+    )
+    state_manager.add_script(
+        ScriptInfo(
+            name="branch.py",
+            source_type=SourceType.GIT,
+            source_url="https://github.com/acme/repo-one",
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "branch-repo",
+            commit_hash="11111111",
+        )
+    )
+    state_manager.add_script(
+        ScriptInfo(
+            name="pinned.py",
+            source_type=SourceType.GIT,
+            source_url="https://github.com/acme/repo-two",
+            ref="v1.2.3",
+            ref_type="tag",
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "pinned-repo",
+            commit_hash="22222222",
+        )
+    )
+
+    source_result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--source", "repo-one"],
+    )
+    assert source_result.exit_code == 0, source_result.output
+    assert "branch.py" in source_result.output
+    assert "pinned.py" not in source_result.output
+
+    ref_result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--ref", "v1.2"],
+    )
+    assert ref_result.exit_code == 0, ref_result.output
+    assert "pinned.py" in ref_result.output
+    assert "branch.py" not in ref_result.output
+
+    status_result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--status", "pinned"],
+    )
+    assert status_result.exit_code == 0, status_result.output
+    assert "pinned.py" in status_result.output
+    assert "branch.py" not in status_result.output
+
+
+def test_cli_list_sorts_by_updated_descending(tmp_path: Path, monkeypatch) -> None:
+    """list --sort updated should show newest installs first."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="older.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime(2024, 1, 1, 0, 0, 0),
+            repo_path=repo_dir / "older-repo",
+            source_path=tmp_path,
+        )
+    )
+    state_manager.add_script(
+        ScriptInfo(
+            name="newer.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime(2025, 1, 1, 0, 0, 0),
+            repo_path=repo_dir / "newer-repo",
+            source_path=tmp_path,
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--sort", "updated", "--full"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result.output.index("newer.py") < result.output.index("older.py")
+
+
+def test_cli_list_shows_message_when_filters_match_nothing(tmp_path: Path, monkeypatch) -> None:
+    """list should report when no scripts match filters."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool-repo",
+            source_path=tmp_path,
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--status", "pinned"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "No scripts matched the provided filters." in result.output
+
+
 @REQUIRES_UV
 @REQUIRES_GIT
 def test_cli_list_verbose_displays_local_changes_for_git_scripts(tmp_path: Path) -> None:

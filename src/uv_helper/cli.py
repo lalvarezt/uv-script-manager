@@ -192,6 +192,99 @@ def _prompt_for_script_selection(candidates: list[str]) -> tuple[str, ...]:
             console.print(f"[red]Error:[/red] {e}. Enter values like [cyan]1[/cyan] or [cyan]1,3-5[/cyan].")
 
 
+def _get_list_status(script, local_changes_cache: dict[tuple[Path, str], str]) -> str:
+    """Derive list status label used for filtering and sorting."""
+    from .constants import SourceType
+    from .local_changes import get_local_change_state
+
+    if script.source_type == SourceType.LOCAL:
+        return "local"
+
+    if script.ref_type in ("tag", "commit"):
+        return "pinned"
+
+    script_key = (script.repo_path, script.name)
+    if script_key not in local_changes_cache:
+        local_changes_cache[script_key] = get_local_change_state(script.repo_path, script.name)
+
+    local_state = local_changes_cache[script_key]
+    if local_state == "blocking":
+        return "needs-attention"
+    if local_state == "managed":
+        return "managed"
+    if local_state == "clean":
+        return "clean"
+    return "unknown"
+
+
+def _filter_and_sort_scripts(
+    scripts,
+    source_filter: str | None,
+    status_filter: str | None,
+    ref_filter: str | None,
+    sort_by: str,
+):
+    """Filter and sort scripts for list command output."""
+    from .constants import SourceType
+
+    local_changes_cache: dict[tuple[Path, str], str] = {}
+    filtered = scripts
+
+    if source_filter:
+        source_text = source_filter.lower()
+        filtered = [
+            script
+            for script in filtered
+            if source_text
+            in (
+                (script.source_url or "")
+                if script.source_type == SourceType.GIT
+                else str(script.source_path or "")
+            ).lower()
+        ]
+
+    if ref_filter:
+        ref_text = ref_filter.lower()
+        filtered = [
+            script
+            for script in filtered
+            if script.source_type == SourceType.GIT and ref_text in (script.ref or "").lower()
+        ]
+
+    if status_filter:
+        status_key = status_filter.lower()
+        if status_key == "git":
+            filtered = [script for script in filtered if script.source_type == SourceType.GIT]
+        else:
+            filtered = [
+                script for script in filtered if _get_list_status(script, local_changes_cache) == status_key
+            ]
+
+    if sort_by == "updated":
+        filtered = sorted(filtered, key=lambda script: script.installed_at, reverse=True)
+    elif sort_by == "source":
+        filtered = sorted(
+            filtered,
+            key=lambda script: (
+                (script.source_url or "")
+                if script.source_type == SourceType.GIT
+                else str(script.source_path or "")
+            ).lower(),
+        )
+    elif sort_by == "status":
+        filtered = sorted(
+            filtered,
+            key=lambda script: (
+                _get_list_status(script, local_changes_cache),
+                script.display_name.lower(),
+            ),
+        )
+    else:
+        filtered = sorted(filtered, key=lambda script: script.display_name.lower())
+
+    return filtered
+
+
 @click.group()
 @click.version_option(version=__version__)
 @click.option(
@@ -411,8 +504,35 @@ def install(
 )
 @click.option("--tree", is_flag=True, help="Display scripts grouped by source in a tree view")
 @click.option("--full", is_flag=True, help="Disable truncation for table columns")
+@click.option("--source", help="Filter by source URL/path substring")
+@click.option(
+    "--status",
+    type=click.Choice(
+        ["local", "git", "pinned", "needs-attention", "clean", "managed", "unknown"],
+        case_sensitive=False,
+    ),
+    help="Filter by script status",
+)
+@click.option("--ref", "ref_filter", help="Filter git refs by substring")
+@click.option(
+    "--sort",
+    "sort_by",
+    type=click.Choice(["name", "updated", "source", "status"], case_sensitive=False),
+    default="name",
+    show_default=True,
+    help="Sort scripts by a column",
+)
 @click.pass_context
-def list_scripts(ctx: click.Context, verbose: bool, tree: bool, full: bool) -> None:
+def list_scripts(
+    ctx: click.Context,
+    verbose: bool,
+    tree: bool,
+    full: bool,
+    source: str | None,
+    status: str | None,
+    ref_filter: str | None,
+    sort_by: str,
+) -> None:
     """
     List all installed scripts with their details.
 
@@ -440,6 +560,10 @@ def list_scripts(ctx: click.Context, verbose: bool, tree: bool, full: bool) -> N
         \b
         # Show full values without truncation
         uv-helper list --verbose --full
+
+        \b
+        # Filter and sort scripts
+        uv-helper list --status pinned --sort updated
     """
     from rich.tree import Tree
 
@@ -450,9 +574,13 @@ def list_scripts(ctx: click.Context, verbose: bool, tree: bool, full: bool) -> N
     state_manager = StateManager(config.state_file)
 
     scripts = state_manager.list_scripts()
+    scripts = _filter_and_sort_scripts(scripts, source, status, ref_filter, sort_by)
 
     if not scripts:
-        console.print("No scripts installed.")
+        if source or status or ref_filter:
+            console.print("No scripts matched the provided filters.")
+        else:
+            console.print("No scripts installed.")
         return
 
     if tree:
