@@ -2122,6 +2122,51 @@ def test_cli_remove_clean_repo_only_after_last_script(tmp_path: Path) -> None:
 
 
 @REQUIRES_UV
+def test_cli_remove_dry_run_does_not_mutate_state(tmp_path: Path) -> None:
+    """remove --dry-run should report actions without changing state or filesystem."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    script_repo = repo_dir / "tool-repo"
+    script_repo.mkdir(parents=True)
+    script_path = script_repo / "tool.py"
+    script_path.write_text("print('hello')\n", encoding="utf-8")
+
+    install_dir.mkdir(parents=True, exist_ok=True)
+    symlink_path = install_dir / "tool.py"
+    symlink_path.symlink_to(script_path)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            source_path=tmp_path,
+            symlink_path=symlink_path,
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "remove", "tool.py", "--clean-repo", "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Dry run:" in result.output
+    assert "would remove" in result.output
+    assert StateManager(state_file).get_script("tool.py") is not None
+    assert symlink_path.exists()
+    assert script_repo.exists()
+
+
+@REQUIRES_UV
 def test_cli_export_preserves_git_ref_metadata_and_import_dry_run_uses_it(tmp_path: Path) -> None:
     """Export/import dry-run should preserve and use branch/tag/commit ref metadata."""
     runner = CliRunner()

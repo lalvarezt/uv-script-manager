@@ -794,12 +794,14 @@ def show(ctx: click.Context, script_name: str, json_output: bool) -> None:
 @click.argument("script-name", shell_complete=complete_script_names)
 @click.option("--clean-repo", "-c", is_flag=True, help="Remove repository if no other scripts use it")
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+@click.option("--dry-run", is_flag=True, help="Preview removal without making changes")
 @click.pass_context
 def remove(
     ctx: click.Context,
     script_name: str,
     clean_repo: bool,
     force: bool,
+    dry_run: bool,
 ) -> None:
     """
     Remove an installed script and optionally clean up its repository.
@@ -821,12 +823,40 @@ def remove(
         \b
         # Skip confirmation prompt
         uv-helper remove myscript --force
+
+        \b
+        # Preview removal without applying changes
+        uv-helper remove myscript --dry-run
     """
     config = ctx.obj["config"]
     state_manager = StateManager(config.state_file)
 
     if clean_repo:
         _print_remove_clean_repo_impact_summary(state_manager, script_name)
+
+    script_info = state_manager.get_script_flexible(script_name)
+    if dry_run:
+        if script_info is None:
+            console.print(f"[red]Error:[/red] Script '{script_name}' not found.")
+            sys.exit(1)
+
+        console.print("[bold]Dry run:[/bold] remove")
+        console.print(f"  Script: {script_info.display_name}")
+        if script_info.source_type.value == "git":
+            console.print(f"  Source: {script_info.source_url or 'N/A'}")
+        else:
+            console.print(f"  Source: {script_info.source_path or 'local'}")
+        console.print(f"  Symlink: {script_info.symlink_path or 'None'}")
+
+        if clean_repo:
+            scripts_from_repo = state_manager.get_scripts_from_repo(script_info.repo_path)
+            if len(scripts_from_repo) == 1:
+                console.print(f"  Repository action: would remove {script_info.repo_path}")
+            else:
+                console.print("  Repository action: kept (shared by other scripts)")
+
+        console.print("[dim]Re-run without --dry-run to apply removal.[/dim]")
+        return
 
     handler = RemoveHandler(config, console)
 
