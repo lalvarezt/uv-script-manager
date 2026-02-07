@@ -223,7 +223,7 @@ def test_cli_install_script_not_found(tmp_path: Path, monkeypatch) -> None:
 
     result = runner.invoke(cli, ["install", str(source_dir), "--script", "missing.py"])
 
-    assert result.exit_code == 0
+    assert result.exit_code != 0
     assert "missing.py" in result.output
     assert "Not found" in result.output or "not found" in result.output
 

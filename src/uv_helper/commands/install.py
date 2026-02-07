@@ -398,6 +398,17 @@ class InstallHandler:
             self.console.print(f"[red]Error:[/red] Invalid script name '{script_name}': {e}")
             return (script_name, False, f"Invalid script name: {e}")
 
+        normalized_parts = Path(script_name.replace("\\", "/")).parts
+        is_absolute_like = (
+            Path(script_name).is_absolute()
+            or script_name.startswith(("/", "\\"))
+            or (bool(normalized_parts) and normalized_parts[0].endswith(":"))
+        )
+        if is_absolute_like or ".." in normalized_parts:
+            error = "Path traversal is not allowed"
+            self.console.print(f"[red]Error:[/red] Invalid script name '{script_name}': {error}")
+            return (script_name, False, f"Invalid script name: {error}")
+
         # For local sources without copy-parent-dir, copy script from source
         if context.is_local and not context.copy_parent_dir:
             assert context.source_path is not None

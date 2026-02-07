@@ -6,8 +6,12 @@ Tests for path traversal prevention, TOCTOU race conditions, and other security 
 from pathlib import Path
 
 import pytest
+from click.testing import CliRunner
 
+from tests.cli_helpers import _write_config
+from uv_helper.cli import cli
 from uv_helper.script_installer import ScriptInstallerError, create_symlink
+from uv_helper.state import StateManager
 from uv_helper.utils import safe_rmtree
 
 
@@ -136,11 +140,40 @@ class TestSymlinkAttackPrevention:
 class TestValidationCoverage:
     """Test that all entry points have proper validation."""
 
-    def test_script_name_validation_in_install(self) -> None:
-        """Test that script names are validated during installation."""
-        # This is validated in InstallHandler._install_single_script
-        # via validate_filepath() call - tested through integration tests
-        pass  # Covered by integration tests
+    def test_script_name_validation_in_install(self, tmp_path: Path, monkeypatch) -> None:
+        """Install command should reject path traversal attempts in --script values."""
+        runner = CliRunner()
+
+        repo_dir = tmp_path / "repos"
+        install_dir = tmp_path / "bin"
+        state_file = tmp_path / "state.json"
+        config_path = tmp_path / "config.toml"
+        _write_config(config_path, repo_dir, install_dir, state_file)
+
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        (source_dir / "tool.py").write_text("print('tool')\n", encoding="utf-8")
+        (tmp_path / "outside.py").write_text("print('outside')\n", encoding="utf-8")
+
+        monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+        result = runner.invoke(
+            cli,
+            [
+                "--config",
+                str(config_path),
+                "install",
+                str(source_dir),
+                "--script",
+                "../outside.py",
+                "--no-deps",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "Invalid script name" in result.output
+        assert StateManager(state_file).get_script("../outside.py") is None
+        assert not (repo_dir / "outside.py").exists()
 
     def test_alias_validation_in_create_symlink(self, tmp_path: Path) -> None:
         """Test that alias names are validated."""

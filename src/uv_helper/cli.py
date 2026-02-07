@@ -572,6 +572,10 @@ def install(
         display_install_results(results, install_directory, console)
 
         installed_scripts = [name for name, success, _ in results if success]
+        if results and not installed_scripts:
+            console.print("[red]Error:[/red] Installation failed for all requested scripts.")
+            sys.exit(1)
+
         if installed_scripts:
             if len(installed_scripts) == 1:
                 console.print(f"[dim]Next: uv-helper show {installed_scripts[0]} | uv-helper list[/dim]")
