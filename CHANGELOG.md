@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `uv-helper update --all` is now the canonical bulk-update flow (`update-all` remains as a hidden compatibility alias)
 - List rendering now adapts column widths to terminal size, and `--full` disables truncation for long values
 - Local-change and update status labels now use clearer wording in table and detail views (for example `Needs attention`, `Pinned (...)`, and `Local-only`)
+- `doctor` now includes a script status summary that reuses the same status model as `list`, `show`, and `update`
+- CLI tests are now split by subcommand-specific modules for clearer coverage and maintenance
+
+### Fixed
+
+- `install --script` now rejects unsafe path values (absolute paths, drive-style roots, and `..` traversal)
+- `install` now exits with a failure code when all requested script installs fail
+- `list` now prints a compact follow-up hint when scripts need attention, and `show` now includes actionable reason/inspect guidance
+- Script-name shell completion now honors `--config` from parent command context and from `COMP_WORDS` parsing
 
 ## [1.4.0] - 2026-02-06
 
