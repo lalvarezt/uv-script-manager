@@ -2,11 +2,20 @@
 
 from pathlib import Path
 
+import pytest
+from rich.console import Console
+
+from uv_helper.git_manager import GitError
 from uv_helper.utils import (
+    ErrorContext,
     ensure_dir,
     expand_path,
     get_repo_name_from_url,
+    handle_git_error,
+    handle_operation,
     is_git_url,
+    is_local_directory,
+    safe_rmtree,
     validate_python_script,
 )
 
@@ -91,6 +100,20 @@ class TestExpandPath:
         assert isinstance(result, Path)
 
 
+class TestCommandAndPathChecks:
+    """Tests for command/path helper functions."""
+
+    def test_is_local_directory_handles_expand_errors(self, monkeypatch) -> None:
+        """is_local_directory should return False when path expansion fails."""
+
+        def raise_oserror(_path: str) -> Path:
+            raise OSError("boom")
+
+        monkeypatch.setattr("uv_helper.utils.expand_path", raise_oserror)
+
+        assert is_local_directory("~/broken") is False
+
+
 class TestGetRepoNameFromUrl:
     """Tests for get_repo_name_from_url function."""
 
@@ -147,3 +170,84 @@ class TestValidatePythonScript:
         script.write_text("")
 
         assert not validate_python_script(script)
+
+
+class TestErrorHandling:
+    """Tests for generic error handlers."""
+
+    def test_handle_operation_non_matching_error_type_reraises(self) -> None:
+        """handle_operation should re-raise exceptions outside configured error_types."""
+        console = Console(record=True)
+        context = ErrorContext("Operation")
+
+        with pytest.raises(RuntimeError, match="unexpected"):
+            handle_operation(
+                console,
+                lambda: (_ for _ in ()).throw(RuntimeError("unexpected")),
+                context,
+                error_types=(ValueError,),
+            )
+
+    def test_handle_operation_prints_specific_suggestion_and_returns_none(self) -> None:
+        """handle_operation should print configured suggestion when not reraising."""
+        console = Console(record=True)
+        context = ErrorContext(
+            "Git clone",
+            suggestions={ValueError: "Use a valid repository URL"},
+        )
+
+        result = handle_operation(
+            console,
+            lambda: (_ for _ in ()).throw(ValueError("bad url")),
+            context,
+            error_types=(ValueError,),
+            reraise=False,
+        )
+
+        assert result is None
+        output = console.export_text()
+        assert "Error:" in output
+        assert "Git clone: bad url" in output
+        assert "Suggestion:" in output
+        assert "Use a valid repository URL" in output
+
+    def test_handle_operation_prints_generic_permission_suggestion(self) -> None:
+        """handle_operation should print generic file-permission suggestion."""
+        console = Console(record=True)
+        context = ErrorContext("Filesystem")
+
+        result = handle_operation(
+            console,
+            lambda: (_ for _ in ()).throw(PermissionError("denied")),
+            context,
+            reraise=False,
+        )
+
+        assert result is None
+        output = console.export_text()
+        assert "Check file permissions and disk space" in output
+
+    def test_handle_git_error_re_raises_giterror_with_guidance(self) -> None:
+        """handle_git_error should preserve GitError and print default guidance."""
+        console = Console(record=True)
+
+        with pytest.raises(GitError, match="clone failed"):
+            handle_git_error(
+                console,
+                lambda: (_ for _ in ()).throw(GitError("clone failed")),
+            )
+
+        output = console.export_text()
+        assert "Error:" in output
+        assert "Suggestion:" in output
+
+
+class TestSafeRmtreeAdditionalCases:
+    """Additional safe_rmtree checks not covered by security tests."""
+
+    def test_safe_rmtree_rejects_unresolvable_path(self, tmp_path: Path) -> None:
+        """safe_rmtree should reject missing paths during strict resolve."""
+        missing = tmp_path / "does-not-exist"
+
+        with pytest.raises(ValueError, match="Cannot safely resolve path"):
+            safe_rmtree(missing)

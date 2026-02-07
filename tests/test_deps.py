@@ -189,3 +189,37 @@ class TestResolveDependencies:
         result = resolve_dependencies("deps/requirements.txt", repo_path, source_path)
 
         assert result == ["click"]
+
+    def test_with_comma_separated_appends_to_auto_detected_requirements(self, tmp_path: Path) -> None:
+        """Comma-separated --with values should append to auto-detected requirements.txt."""
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("requests\n")
+
+        result = resolve_dependencies("click,rich", tmp_path)
+
+        assert result == ["requests", "click", "rich"]
+
+    def test_with_absolute_requirements_path(self, tmp_path: Path) -> None:
+        """Absolute requirements paths should be supported as a final fallback."""
+        req_file = tmp_path / "shared-requirements.txt"
+        req_file.write_text("rich\n")
+
+        unrelated_repo = tmp_path / "repo"
+        unrelated_repo.mkdir()
+
+        result = resolve_dependencies(str(req_file), unrelated_repo)
+
+        assert result == ["rich"]
+
+    def test_with_requirements_path_not_found_raises_file_not_found(self, tmp_path: Path) -> None:
+        """Missing requirements path should raise FileNotFoundError after all fallbacks."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        with pytest.raises(FileNotFoundError):
+            resolve_dependencies("deps/missing.txt", repo_path)
+
+    def test_with_invalid_requirements_path_raises_value_error(self, tmp_path: Path) -> None:
+        """Invalid requirements paths should raise ValueError from path validation."""
+        with pytest.raises(ValueError, match="Invalid requirements file path"):
+            resolve_dependencies("bad\x00path.txt", tmp_path)

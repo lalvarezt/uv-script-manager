@@ -8,12 +8,16 @@ import pytest
 
 from uv_helper.constants import GIT_SHORT_HASH_LENGTH
 from uv_helper.git_manager import (
+    GitError,
     GitRef,
+    checkout_ref,
     clone_or_update,
     get_current_commit_hash,
     get_default_branch,
+    get_remote_commit_hash,
     is_detached_head,
     parse_git_url,
+    verify_git_available,
 )
 
 
@@ -175,6 +179,107 @@ class TestGitRef:
         )
 
         assert ref.ref_value is None
+
+
+class TestGitManagerFallbacks:
+    """Unit tests for fallback/error branches in git_manager helpers."""
+
+    def test_get_default_branch_uses_ls_remote_symref_fallback(self, monkeypatch, tmp_path: Path) -> None:
+        """When origin/HEAD lookup fails, get_default_branch should parse ls-remote output."""
+        calls = {"count": 0}
+
+        def fake_run_command(cmd, cwd=None, check=True):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise subprocess.CalledProcessError(1, cmd, stderr="no symbolic-ref")
+            if cmd[:3] == ["git", "ls-remote", "--symref"]:
+                return subprocess.CompletedProcess(
+                    cmd,
+                    0,
+                    stdout="ref: refs/heads/main\tHEAD\nabc123\tHEAD\n",
+                    stderr="",
+                )
+            raise AssertionError(f"Unexpected command: {cmd}")
+
+        monkeypatch.setattr("uv_helper.git_manager.run_command", fake_run_command)
+
+        assert get_default_branch(tmp_path) == "main"
+
+    def test_get_default_branch_uses_current_branch_last_fallback(self, monkeypatch, tmp_path: Path) -> None:
+        """When remote lookups fail, get_default_branch should use local current branch."""
+        calls = {"count": 0}
+
+        def fake_run_command(cmd, cwd=None, check=True):
+            calls["count"] += 1
+            if calls["count"] <= 2:
+                raise subprocess.CalledProcessError(1, cmd, stderr="failed")
+            return subprocess.CompletedProcess(cmd, 0, stdout="feature-x\n", stderr="")
+
+        monkeypatch.setattr("uv_helper.git_manager.run_command", fake_run_command)
+
+        assert get_default_branch(tmp_path) == "feature-x"
+
+    def test_get_default_branch_raises_when_detached_and_no_fallbacks(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        """get_default_branch should raise when no branch can be determined."""
+        calls = {"count": 0}
+
+        def fake_run_command(cmd, cwd=None, check=True):
+            calls["count"] += 1
+            if calls["count"] <= 2:
+                raise subprocess.CalledProcessError(1, cmd, stderr="failed")
+            return subprocess.CompletedProcess(cmd, 0, stdout="\n", stderr="")
+
+        monkeypatch.setattr("uv_helper.git_manager.run_command", fake_run_command)
+
+        with pytest.raises(GitError, match="detached HEAD state"):
+            get_default_branch(tmp_path)
+
+    @pytest.mark.skipif(shutil.which("git") is None, reason="git command required")
+    def test_checkout_ref_falls_back_to_default_branch(self, tmp_path: Path) -> None:
+        """checkout_ref should recover when requested branch is missing but default exists."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        _run_git(repo, "init", "-b", "main")
+        (repo / "tool.py").write_text("print('hi')\n", encoding="utf-8")
+        _run_git(repo, "add", "tool.py")
+        _run_git(
+            repo,
+            "-c",
+            "user.name=Test User",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-m",
+            "initial",
+        )
+
+        assert checkout_ref(repo, "master") is True
+        assert _run_git(repo, "branch", "--show-current") == "main"
+
+    def test_get_remote_commit_hash_raises_when_no_ref_found(self, monkeypatch) -> None:
+        """get_remote_commit_hash should raise when ls-remote returns empty output."""
+
+        def fake_run_command(cmd, cwd=None, check=True):
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        monkeypatch.setattr("uv_helper.git_manager.run_command", fake_run_command)
+
+        with pytest.raises(GitError, match="No commit found"):
+            get_remote_commit_hash("https://github.com/user/repo", "missing-ref")
+
+    def test_verify_git_available_raises_when_git_missing(self, monkeypatch) -> None:
+        """verify_git_available should raise GitError when git command is unavailable."""
+
+        def raise_file_not_found(cmd, cwd=None, check=True):
+            raise FileNotFoundError("git not found")
+
+        monkeypatch.setattr("uv_helper.git_manager.run_command", raise_file_not_found)
+
+        with pytest.raises(GitError, match="Git is not installed"):
+            verify_git_available()
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git command required")

@@ -215,22 +215,22 @@ class TestMigrationRunner:
 
         db.close()
 
-    def test_set_and_get_schema_version(self, tmp_path: Path) -> None:
-        """Test set and get schema version."""
+    def test_mark_and_get_schema_version(self, tmp_path: Path) -> None:
+        """Test schema version tracking through mark_migration_applied."""
         db_path = tmp_path / "test.json"
         db = TinyDB(db_path)
 
         runner = MigrationRunner(db, db_path)
 
-        # Set version
-        runner.set_schema_version(1)
+        # Mark first migration
+        runner.mark_migration_applied(MIGRATIONS[0])
 
         # Get version
         version = runner.get_schema_version()
         assert version == 1
 
-        # Update version
-        runner.set_schema_version(2)
+        # Mark next migration
+        runner.mark_migration_applied(MIGRATIONS[1])
         version = runner.get_schema_version()
         assert version == 2
 
@@ -252,7 +252,7 @@ class TestMigrationRunner:
         db = TinyDB(db_path)
 
         runner = MigrationRunner(db, db_path)
-        runner.set_schema_version(CURRENT_SCHEMA_VERSION)
+        runner.mark_migration_applied(MIGRATIONS[-1])
 
         assert runner.needs_migration() is False
 
@@ -294,7 +294,7 @@ class TestMigrationRunner:
         db = TinyDB(db_path)
 
         runner = MigrationRunner(db, db_path)
-        runner.set_schema_version(CURRENT_SCHEMA_VERSION)
+        runner.mark_migration_applied(MIGRATIONS[-1])
 
         # Should not run any migrations
         runner.run_migrations(MIGRATIONS)
