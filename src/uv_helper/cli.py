@@ -293,6 +293,15 @@ def list_scripts(ctx: click.Context, verbose: bool, tree: bool) -> None:
         console.print("No scripts installed.")
         return
 
+    if verbose and config.list_verbose_fallback and console.width < config.list_min_width:
+        console.print(
+            "[yellow]Warning:[/yellow] Terminal width "
+            f"({console.width}) is too narrow for [cyan]uv-helper list --verbose[/cyan] "
+            f"output (minimum {config.list_min_width} columns). Falling back to "
+            "[cyan]uv-helper list[/cyan]."
+        )
+        verbose = False
+
     if tree:
         # Group scripts by source
         groups: dict[str, list] = {}

@@ -1,0 +1,32 @@
+[meta]
+schema_version = 1
+
+[global.paths]
+# Where to clone repositories
+repo_dir = "~/.local/share/uv-helper"
+
+# Where to create symlinks
+install_dir = "~/.local/bin"
+
+# Where to store state file
+state_file = "~/.local/share/uv-helper/state.json"
+
+[global.git]
+# Git clone depth (1 for shallow clone)
+clone_depth = 1
+
+[global.install]
+# Automatically create symlinks
+auto_symlink = true
+
+# Verify script works after installation
+verify_after_install = true
+
+# Make scripts executable
+auto_chmod = true
+
+# Use --exact flag in shebang for precise dependency management
+use_exact_flag = true
+
+[commands.list]
+# Reserved for future list command options

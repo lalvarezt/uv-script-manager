@@ -55,25 +55,45 @@ def _create_origin_repo_with_tag(tmp_path: Path) -> Path:
     return origin
 
 
-def _write_config(config_path: Path, repo_dir: Path, install_dir: Path, state_file: Path) -> None:
-    config_path.write_text(
-        "\n".join(
+def _write_config(
+    config_path: Path,
+    repo_dir: Path,
+    install_dir: Path,
+    state_file: Path,
+    list_verbose_fallback: bool | None = None,
+    list_min_width: int | None = None,
+) -> None:
+    lines = [
+        "[global.paths]",
+        f'repo_dir = "{repo_dir}"',
+        f'install_dir = "{install_dir}"',
+        f'state_file = "{state_file}"',
+        "",
+        "[global.git]",
+        "clone_depth = 1",
+        "",
+        "[global.install]",
+        "auto_symlink = true",
+        "verify_after_install = true",
+        "auto_chmod = true",
+        "use_exact_flag = true",
+    ]
+
+    if list_verbose_fallback is not None or list_min_width is not None:
+        lines.extend(
             [
-                "[paths]",
-                f'repo_dir = "{repo_dir}"',
-                f'install_dir = "{install_dir}"',
-                f'state_file = "{state_file}"',
                 "",
-                "[git]",
-                "clone_depth = 1",
-                "",
-                "[install]",
-                "auto_symlink = true",
-                "verify_after_install = true",
-                "auto_chmod = true",
-                "use_exact_flag = true",
+                "[commands.list]",
             ]
-        ),
+        )
+        if list_verbose_fallback is not None:
+            value = "true" if list_verbose_fallback else "false"
+            lines.append(f"verbose_fallback = {value}")
+        if list_min_width is not None:
+            lines.append(f"min_width = {list_min_width}")
+
+    config_path.write_text(
+        "\n".join(lines),
         encoding="utf-8",
     )
 
@@ -1052,6 +1072,82 @@ def test_cli_show_displays_local_changes_for_git_scripts(tmp_path: Path) -> None
     assert result.exit_code == 0, result.output
     assert "Local changes:" in result.output
     assert "Yes" in result.output
+
+
+def test_cli_list_verbose_falls_back_on_narrow_width_when_enabled(tmp_path: Path, monkeypatch) -> None:
+    """list --verbose should fallback to non-verbose output on narrow terminals when enabled."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(
+        config_path,
+        repo_dir,
+        install_dir,
+        state_file,
+        list_verbose_fallback=True,
+        list_min_width=200,
+    )
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool-repo",
+            source_path=tmp_path,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "list", "--verbose"])
+
+    assert result.exit_code == 0, result.output
+    assert "Warning:" in result.output
+    assert "too narrow" in result.output
+    assert "Falling back" in result.output
+    assert "minimum 200 columns" in result.output
+    assert result.output.count("┳") == 3
+    assert "Commit" not in result.output
+    assert "Dependencies" not in result.output
+    assert "tool.py" in result.output
+
+
+def test_cli_list_verbose_no_fallback_on_narrow_width_by_default(tmp_path: Path, monkeypatch) -> None:
+    """list --verbose should remain verbose by default, even on narrow terminals."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file, list_min_width=200)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool-repo",
+            source_path=tmp_path,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "list", "--verbose"])
+
+    assert result.exit_code == 0, result.output
+    assert "Falling back" not in result.output
+    assert result.output.count("┳") == 6
+    assert "Commit" in result.output
+    assert "Dependenci" in result.output
+    assert "tool.py" in result.output
 
 
 @REQUIRES_UV
