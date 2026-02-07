@@ -11,6 +11,7 @@ from uv_helper.local_changes import (
     _strip_initial_shebang,
     _strip_uv_managed_header,
     clear_managed_script_changes,
+    get_local_change_details,
     get_local_change_state,
 )
 
@@ -54,6 +55,7 @@ class TestLocalChangeClassification:
         repo = self._init_repo(tmp_path)
 
         assert get_local_change_state(repo, "tool.py") == "clean"
+        assert get_local_change_details(repo, "tool.py") is None
 
     def test_get_local_change_state_blocking_for_untracked_files(self, tmp_path: Path) -> None:
         """Untracked files should mark local changes as blocking."""
@@ -61,6 +63,7 @@ class TestLocalChangeClassification:
         (repo / "extra.py").write_text("print('extra')\n", encoding="utf-8")
 
         assert get_local_change_state(repo, "tool.py") == "blocking"
+        assert "Untracked files present" in (get_local_change_details(repo, "tool.py") or "")
 
     def test_get_local_change_state_managed_for_uv_header_only_changes(self, tmp_path: Path) -> None:
         """Only uv-managed header edits should be classified as managed."""
@@ -75,6 +78,15 @@ class TestLocalChangeClassification:
         )
 
         assert get_local_change_state(repo, "tool.py") == "managed"
+        assert "Only uv-managed" in (get_local_change_details(repo, "tool.py") or "")
+
+    def test_get_local_change_details_reports_custom_script_edits(self, tmp_path: Path) -> None:
+        """Custom unstaged script edits should return a clear detail message."""
+        repo = self._init_repo(tmp_path)
+        (repo / "tool.py").write_text("#!/usr/bin/env python3\nprint('changed')\n", encoding="utf-8")
+
+        assert get_local_change_state(repo, "tool.py") == "blocking"
+        assert "custom uncommitted edits" in (get_local_change_details(repo, "tool.py") or "")
 
     def test_clear_managed_script_changes_reverts_script(self, tmp_path: Path) -> None:
         """clear_managed_script_changes should checkout the script and restore clean state."""
@@ -92,6 +104,13 @@ def test_get_local_change_state_returns_unknown_for_non_git_directory(tmp_path: 
     (repo / "tool.py").write_text("print('x')\n", encoding="utf-8")
 
     assert get_local_change_state(repo, "tool.py") == "unknown"
+    assert "Unable to inspect Git status" in (get_local_change_details(repo, "tool.py") or "")
+
+
+def test_get_local_change_details_reports_missing_repo_path(tmp_path: Path) -> None:
+    """Missing repository paths should produce a clear detail message."""
+    missing_repo = tmp_path / "missing-repo"
+    assert get_local_change_details(missing_repo, "tool.py") == "Repository path is missing."
 
 
 def test_clear_managed_script_changes_returns_false_on_checkout_failure(monkeypatch, tmp_path: Path) -> None:

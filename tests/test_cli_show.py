@@ -94,8 +94,15 @@ def test_cli_show_displays_local_changes_for_git_scripts(tmp_path: Path) -> None
     result = runner.invoke(cli, ["--config", str(config_path), "show", "tool.py"])
 
     assert result.exit_code == 0, result.output
-    assert "Local changes:" in result.output
+    assert "Status:" in result.output
     assert "Needs attention" in result.output
+    assert "Local changes:" not in result.output
+    assert "Reason:" in result.output
+    assert "custom uncommitted edits" in result.output
+    assert "status --short" in result.output
+    assert result.output.rfind("Status:") > result.output.rfind("Dependencies:")
+    assert result.output.rfind("Status:") < result.output.rfind("Reason:")
+    assert result.output.rfind("Status:") < result.output.rfind("Inspect with:")
 
 
 def test_cli_show_json_outputs_parseable_payload(tmp_path: Path, monkeypatch) -> None:
@@ -194,5 +201,10 @@ def test_cli_show_reports_uv_managed_changes_as_non_blocking(tmp_path: Path) -> 
     result = runner.invoke(cli, ["--config", str(config_path), "show", "tool.py"])
 
     assert result.exit_code == 0, result.output
-    assert "Local changes:" in result.output
+    assert "Status:" in result.output
     assert "Managed" in result.output
+    assert "Local changes:" not in result.output
+    assert "Reason:" in result.output
+    assert "Only uv-managed" in result.output
+    assert result.output.rfind("Status:") > result.output.rfind("Dependencies:")
+    assert result.output.rfind("Status:") < result.output.rfind("Reason:")

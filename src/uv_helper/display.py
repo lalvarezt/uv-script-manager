@@ -374,7 +374,7 @@ def display_script_details(script: ScriptInfo, console: Console) -> None:
     status_cache: dict[tuple[Path, str], str] = {}
     status_key = get_script_status_key(script, status_cache)
     status_detail = script.ref if status_key == "pinned" else None
-    table.add_row("Status:", render_script_status(status_key, status_detail))
+    status_rows: list[tuple[str, str]] = []
 
     # Source info
     if script.source_type == SourceType.GIT:
@@ -382,9 +382,13 @@ def display_script_details(script: ScriptInfo, console: Console) -> None:
         table.add_row("Source URL:", f"[magenta]{script.source_url}[/magenta]")
         table.add_row("Ref:", f"[green]{script.ref or 'default'}[/green]")
         table.add_row("Commit:", f"[blue]{script.commit_hash or 'N/A'}[/blue]")
+        table.add_row("", "")
         local_state = local_changes.get_local_change_state(script.repo_path, script.name)
-        local_changes_display = _render_local_changes_state(local_state)
-        table.add_row("Local changes:", local_changes_display)
+        change_reason = local_changes.get_local_change_details(script.repo_path, script.name)
+        if change_reason:
+            status_rows.append(("Reason:", change_reason))
+        if local_state in ("blocking", "unknown") and script.repo_path.exists():
+            status_rows.append(("Inspect with:", f"[cyan]git -C {script.repo_path} status --short[/cyan]"))
     else:
         table.add_row("Source type:", "Local directory")
         source_path = str(script.source_path) if script.source_path else "N/A"
@@ -406,6 +410,11 @@ def display_script_details(script: ScriptInfo, console: Console) -> None:
         table.add_row("Dependencies:", deps_str)
     else:
         table.add_row("Dependencies:", "[dim]None[/dim]")
+
+    table.add_row("", "")
+    table.add_row("Status:", render_script_status(status_key, status_detail))
+    for label, value in status_rows:
+        table.add_row(label, value)
 
     title = f"Script: {script.display_name}"
     console.print(Panel(table, title=title, border_style="cyan"))

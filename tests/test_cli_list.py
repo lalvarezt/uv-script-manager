@@ -220,6 +220,43 @@ def test_cli_list_filters_by_source_ref_and_status(tmp_path: Path, monkeypatch) 
     assert "branch.py" not in status_result.output
 
 
+def test_cli_list_prints_needs_attention_hint(tmp_path: Path, monkeypatch) -> None:
+    """list should print a follow-up hint when scripts need attention."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_helper.local_changes.get_local_change_state", lambda repo, name: "blocking")
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.GIT,
+            source_url="https://github.com/acme/repo",
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "repo",
+            commit_hash="12345678",
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Some scripts need attention." in result.output
+    assert "Example: uv-helper show tool.py" in result.output
+
+
 def test_cli_list_sorts_by_updated_descending(tmp_path: Path, monkeypatch) -> None:
     """list --sort updated should show newest installs first."""
     runner = CliRunner()

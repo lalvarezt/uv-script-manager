@@ -353,6 +353,23 @@ def _print_remove_clean_repo_impact_summary(state_manager: StateManager, script_
     console.print(f"  Repository: {script_info.repo_path} ({repo_action})")
 
 
+def _print_needs_attention_hint(scripts) -> None:
+    """Print a follow-up hint when one or more scripts need attention."""
+    local_changes_cache: dict[tuple[Path, str], str] = {}
+    needs_attention = [
+        script.display_name
+        for script in scripts
+        if _get_list_status(script, local_changes_cache) == "needs-attention"
+    ]
+
+    if not needs_attention:
+        return
+
+    console.print(
+        f"[#ff8c00]Some scripts need attention.[/] [dim]Example: uv-helper show {needs_attention[0]}[/dim]"
+    )
+
+
 @click.group()
 @click.version_option(version=__version__)
 @click.option(
@@ -724,6 +741,8 @@ def list_scripts(
         console.print(tree_view)
     else:
         display_scripts_table(scripts, verbose, console, full)
+
+    _print_needs_attention_hint(scripts)
 
 
 @cli.command()

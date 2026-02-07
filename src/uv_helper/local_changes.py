@@ -10,13 +10,8 @@ from .utils import run_command
 LocalChangeState = Literal["clean", "managed", "blocking", "unknown"]
 
 
-def get_local_change_state(repo_path: Path, script_rel_path: str) -> LocalChangeState:
-    """Classify local changes for a managed script repository."""
-    if not repo_path.exists():
-        return "unknown"
-
-    script_rel_path = Path(script_rel_path).as_posix()
-
+def _collect_git_change_sets(repo_path: Path) -> tuple[set[str], set[str], set[str]] | None:
+    """Collect unstaged, staged, and untracked paths for a repository."""
     try:
         unstaged = {
             line.strip()
@@ -28,7 +23,9 @@ def get_local_change_state(repo_path: Path, script_rel_path: str) -> LocalChange
         staged = {
             line.strip()
             for line in run_command(
-                ["git", "diff", "--name-only", "--cached"], cwd=repo_path, check=True
+                ["git", "diff", "--name-only", "--cached"],
+                cwd=repo_path,
+                check=True,
             ).stdout.splitlines()
             if line.strip()
         }
@@ -42,7 +39,22 @@ def get_local_change_state(repo_path: Path, script_rel_path: str) -> LocalChange
             if line.strip()
         }
     except subprocess.CalledProcessError:
+        return None
+
+    return unstaged, staged, untracked
+
+
+def get_local_change_state(repo_path: Path, script_rel_path: str) -> LocalChangeState:
+    """Classify local changes for a managed script repository."""
+    if not repo_path.exists():
         return "unknown"
+
+    script_rel_path = Path(script_rel_path).as_posix()
+
+    change_sets = _collect_git_change_sets(repo_path)
+    if change_sets is None:
+        return "unknown"
+    unstaged, staged, untracked = change_sets
 
     if not unstaged and not staged and not untracked:
         return "clean"
@@ -70,6 +82,37 @@ def clear_managed_script_changes(repo_path: Path, script_rel_path: str) -> bool:
         return False
 
 
+def get_local_change_details(repo_path: Path, script_rel_path: str) -> str | None:
+    """Return a concise, actionable detail message for local change state."""
+    if not repo_path.exists():
+        return "Repository path is missing."
+
+    script_rel_path = Path(script_rel_path).as_posix()
+
+    change_sets = _collect_git_change_sets(repo_path)
+    if change_sets is None:
+        return "Unable to inspect Git status for this repository."
+    unstaged, staged, untracked = change_sets
+
+    if not unstaged and not staged and not untracked:
+        return None
+
+    if staged:
+        return _format_changed_paths("Staged changes present", sorted(staged))
+
+    if untracked:
+        return _format_changed_paths("Untracked files present", sorted(untracked))
+
+    non_script_changes = [path for path in sorted(unstaged) if path != script_rel_path]
+    if non_script_changes:
+        return _format_changed_paths("Uncommitted changes in other files", non_script_changes)
+
+    if _is_uv_managed_script_change(repo_path, script_rel_path):
+        return "Only uv-managed shebang/metadata changes are present."
+
+    return f"Script '{script_rel_path}' has custom uncommitted edits."
+
+
 def _is_uv_managed_script_change(repo_path: Path, script_rel_path: str) -> bool:
     """Check whether a script change is only uv-managed header metadata."""
     script_path = repo_path / script_rel_path
@@ -91,6 +134,18 @@ def _is_uv_managed_script_change(repo_path: Path, script_rel_path: str) -> bool:
     working_normalized = _strip_uv_managed_header(working_content)
     head_normalized = _strip_initial_shebang(head_content)
     return working_normalized == head_normalized
+
+
+def _format_changed_paths(prefix: str, paths: list[str]) -> str:
+    """Format a compact path preview for human-readable status details."""
+    if not paths:
+        return prefix
+
+    preview = ", ".join(paths[:3])
+    remainder = len(paths) - 3
+    if remainder > 0:
+        return f"{prefix}: {preview}, +{remainder} more."
+    return f"{prefix}: {preview}."
 
 
 def _strip_uv_managed_header(content: str) -> str:
