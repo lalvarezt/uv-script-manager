@@ -5,6 +5,19 @@ All notable changes to UV-Helper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `list --verbose` narrow-terminal fallback with warning support, controlled by `commands.list.verbose_fallback`
+- Configurable minimum width for verbose list output via `commands.list.min_width`
+- Repository config template at `src/uv_helper/config.toml` now copied to `~/.config/uv-helper/config.toml` when missing
+- Config schema metadata (`[meta].schema_version`) and versioned config migrations for legacy layouts
+
+### Changed
+
+- Configuration structure now uses nested sections (`[global.paths]`, `[global.git]`, `[global.install]`, `[commands.list]`)
+
 ## [1.4.0] - 2026-02-06
 
 ### Added

@@ -177,6 +177,9 @@ uv-helper list [OPTIONS]
 - `--verbose`, `-v`: Show detailed information (commit hash, local changes, and dependencies)
 - `--tree`: Display scripts grouped by source in a tree view
 
+If your terminal is too narrow, `--verbose` can optionally fall back to regular `uv-helper list` output with a warning.
+This is controlled by `commands.list.verbose_fallback` and `commands.list.min_width`, and is disabled by default.
+
 **Examples:**
 
 ```bash
@@ -435,7 +438,10 @@ UV-Helper uses TOML configuration files. The default location is `~/.config/uv-h
 ### Configuration File
 
 ```toml
-[paths]
+[meta]
+schema_version = 1
+
+[global.paths]
 # Where to clone repositories
 repo_dir = "~/.local/share/uv-helper"
 
@@ -445,11 +451,11 @@ install_dir = "~/.local/bin"
 # Where to store state file
 state_file = "~/.local/share/uv-helper/state.json"
 
-[git]
+[global.git]
 # Git clone depth (1 for shallow clone)
 clone_depth = 1
 
-[install]
+[global.install]
 # Automatically create symlinks
 auto_symlink = true
 
@@ -461,6 +467,13 @@ auto_chmod = true
 
 # Use --exact flag in shebang for precise dependency management
 use_exact_flag = true
+
+[commands.list]
+# If true, fallback from `uv-helper list --verbose` to `uv-helper list` when terminal is narrow
+verbose_fallback = false
+
+# Minimum terminal width required for `uv-helper list --verbose`
+min_width = 100
 ```
 
 ### Custom Configuration
@@ -481,7 +494,7 @@ uv-helper install ...
 1. `--config` CLI option (selects the config file explicitly)
 2. `UV_HELPER_CONFIG` environment variable (when `--config` is not provided)
 3. Default config path (`~/.config/uv-helper/config.toml`)
-4. Built-in defaults for missing config values
+4. Defaults sourced from `src/uv_helper/config.toml`
 
 At runtime, command options such as `--install-dir` and `--exact/--no-exact` override config values for that command.
 
