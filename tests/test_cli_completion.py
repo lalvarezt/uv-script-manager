@@ -65,6 +65,75 @@ def test_complete_script_names_returns_empty_on_internal_error(monkeypatch) -> N
     assert complete_script_names(ctx, param=click.Option(["--x"]), incomplete="x") == []
 
 
+def test_complete_script_names_uses_parent_context_config(tmp_path: Path, monkeypatch) -> None:
+    """Completion should honor --config values parsed on parent context."""
+    from uv_helper.config import load_config
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "custom.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    config = load_config(config_path)
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="parent-tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool",
+            source_path=tmp_path,
+            symlink_path=install_dir / "parent-tool",
+        )
+    )
+
+    monkeypatch.setattr("uv_helper.cli.get_config_path", lambda: tmp_path / "missing.toml")
+
+    root_ctx = click.Context(cli)
+    root_ctx.params = {"config": config_path}
+    show_ctx = click.Context(cli.commands["show"], parent=root_ctx)
+    show_ctx.obj = None
+
+    matches = complete_script_names(show_ctx, param=click.Option(["--x"]), incomplete="parent")
+
+    assert [item.value for item in matches] == ["parent-tool.py", "parent-tool"]
+
+
+def test_complete_script_names_uses_comp_words_config(tmp_path: Path, monkeypatch) -> None:
+    """Completion should parse --config from COMP_WORDS when context lacks object state."""
+    from uv_helper.config import load_config
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "custom.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    config = load_config(config_path)
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="env-tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool",
+            source_path=tmp_path,
+            symlink_path=install_dir / "env-tool",
+        )
+    )
+
+    monkeypatch.setattr("uv_helper.cli.get_config_path", lambda: tmp_path / "missing.toml")
+    monkeypatch.setenv("COMP_WORDS", f"uv-helper --config {config_path} show ")
+
+    ctx = click.Context(cli)
+    ctx.obj = None
+
+    matches = complete_script_names(ctx, param=click.Option(["--x"]), incomplete="env")
+
+    assert [item.value for item in matches] == ["env-tool.py", "env-tool"]
+
+
 def test_parse_script_selection_accepts_ranges_and_rejects_invalid_values() -> None:
     """Selection parser should support ranges and reject malformed input."""
     assert _parse_script_selection("1,3-4,2", 5) == [1, 3, 4, 2]

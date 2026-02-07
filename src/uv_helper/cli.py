@@ -2,6 +2,7 @@
 
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
 from typing import cast
@@ -40,12 +41,42 @@ def complete_script_names(
     ctx: click.Context, param: click.Parameter, incomplete: str
 ) -> list[CompletionItem]:
     """Provide completion for installed script names."""
+
+    def _get_completion_config_path() -> Path | None:
+        current_ctx: click.Context | None = ctx
+        while current_ctx is not None:
+            config_value = current_ctx.params.get("config") if current_ctx.params else None
+            if isinstance(config_value, Path):
+                return config_value
+            if isinstance(config_value, str) and config_value:
+                return Path(config_value)
+            current_ctx = current_ctx.parent
+
+        completion_words = os.environ.get("COMP_WORDS")
+        if not completion_words:
+            return None
+
+        try:
+            words = shlex.split(completion_words)
+        except ValueError:
+            words = completion_words.split()
+
+        for index, word in enumerate(words):
+            if word == "--config" and index + 1 < len(words):
+                return Path(words[index + 1])
+            if word.startswith("--config="):
+                _, value = word.split("=", 1)
+                if value:
+                    return Path(value)
+
+        return None
+
     try:
         # Try to get config from context, or load it directly
         if ctx.obj and "config" in ctx.obj:
             config = ctx.obj["config"]
         else:
-            config_path = get_config_path()
+            config_path = _get_completion_config_path() or get_config_path()
             if config_path.exists():
                 config = load_config(config_path)
             else:
