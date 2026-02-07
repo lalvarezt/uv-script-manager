@@ -1374,6 +1374,151 @@ def test_cli_list_shows_message_when_filters_match_nothing(tmp_path: Path, monke
     assert "No scripts matched the provided filters." in result.output
 
 
+def test_cli_list_json_outputs_parseable_payload(tmp_path: Path, monkeypatch) -> None:
+    """list --json should emit structured JSON output."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool-repo",
+            source_path=tmp_path,
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert "scripts" in payload
+    assert payload["scripts"][0]["name"] == "tool.py"
+    assert payload["scripts"][0]["source_type"] == "local"
+
+
+def test_cli_list_json_rejects_tree_mode(tmp_path: Path, monkeypatch) -> None:
+    """list --json should reject --tree mode."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool-repo",
+            source_path=tmp_path,
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--json", "--tree"],
+    )
+
+    assert result.exit_code != 0
+    assert "cannot be combined" in result.output
+
+
+def test_cli_show_json_outputs_parseable_payload(tmp_path: Path, monkeypatch) -> None:
+    """show --json should emit script details as JSON."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool-repo",
+            source_path=tmp_path,
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "show", "tool.py", "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["script"]["name"] == "tool.py"
+    assert payload["script"]["status"] == "local"
+
+
+def test_cli_update_json_outputs_parseable_payload(tmp_path: Path, monkeypatch) -> None:
+    """update --json should emit structured JSON results without table output."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool-repo",
+            source_path=tmp_path,
+        )
+    )
+
+    single_result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "update", "tool.py", "--dry-run", "--json"],
+    )
+    assert single_result.exit_code == 0, single_result.output
+    single_payload = json.loads(single_result.output)
+    assert single_payload["all"] is False
+    assert single_payload["dry_run"] is True
+    assert single_payload["results"][0]["status"] == "skipped (local)"
+
+    all_result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "update", "--all", "--dry-run", "--json"],
+    )
+    assert all_result.exit_code == 0, all_result.output
+    all_payload = json.loads(all_result.output)
+    assert all_payload["all"] is True
+    assert all_payload["dry_run"] is True
+    assert all_payload["results"][0]["status"] == "skipped (local)"
+
+
 @REQUIRES_UV
 @REQUIRES_GIT
 def test_cli_list_verbose_displays_local_changes_for_git_scripts(tmp_path: Path) -> None:

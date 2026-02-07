@@ -2,6 +2,7 @@
 
 import os
 import sys
+import json
 from pathlib import Path
 
 # Runtime version check - must be before other imports
@@ -285,6 +286,54 @@ def _filter_and_sort_scripts(
     return filtered
 
 
+def _script_to_json(
+    script, local_changes_cache: dict[tuple[Path, str], str] | None = None
+) -> dict[str, object]:
+    """Serialize script info for JSON responses."""
+    from .constants import SourceType
+
+    payload: dict[str, object] = {
+        "name": script.name,
+        "display_name": script.display_name,
+        "source_type": script.source_type.value,
+        "source": script.source_url
+        if script.source_type == SourceType.GIT
+        else str(script.source_path or ""),
+        "ref": script.ref,
+        "ref_type": script.ref_type,
+        "commit_hash": script.commit_hash,
+        "installed_at": script.installed_at.isoformat(),
+        "dependencies": script.dependencies,
+        "repo_path": str(script.repo_path),
+        "symlink_path": str(script.symlink_path) if script.symlink_path else None,
+        "source_path": str(script.source_path) if script.source_path else None,
+        "copy_parent_dir": script.copy_parent_dir,
+    }
+
+    status_cache = local_changes_cache if local_changes_cache is not None else {}
+    payload["status"] = _get_list_status(script, status_cache)
+    return payload
+
+
+def _update_results_to_json(results: list[tuple[str, str] | tuple[str, str, str]]) -> list[dict[str, object]]:
+    """Serialize update results for JSON responses."""
+    payload: list[dict[str, object]] = []
+    for result in results:
+        if len(result) == 3:
+            script_name, status, local_changes = result
+        else:
+            script_name, status = result
+            local_changes = None
+        payload.append(
+            {
+                "script": script_name,
+                "status": status,
+                "local_changes": local_changes,
+            }
+        )
+    return payload
+
+
 @click.group()
 @click.version_option(version=__version__)
 @click.option(
@@ -504,6 +553,7 @@ def install(
 )
 @click.option("--tree", is_flag=True, help="Display scripts grouped by source in a tree view")
 @click.option("--full", is_flag=True, help="Disable truncation for table columns")
+@click.option("--json", "json_output", is_flag=True, help="Output list as JSON")
 @click.option("--source", help="Filter by source URL/path substring")
 @click.option(
     "--status",
@@ -528,6 +578,7 @@ def list_scripts(
     verbose: bool,
     tree: bool,
     full: bool,
+    json_output: bool,
     source: str | None,
     status: str | None,
     ref_filter: str | None,
@@ -581,6 +632,15 @@ def list_scripts(
             console.print("No scripts matched the provided filters.")
         else:
             console.print("No scripts installed.")
+        return
+
+    if json_output:
+        if tree:
+            console.print("[red]Error:[/red] --json cannot be combined with --tree")
+            sys.exit(1)
+        local_changes_cache: dict[tuple[Path, str], str] = {}
+        payload = [_script_to_json(script, local_changes_cache) for script in scripts]
+        click.echo(json.dumps({"scripts": payload}, indent=2))
         return
 
     if tree:
@@ -659,8 +719,9 @@ def list_scripts(
 
 @cli.command()
 @click.argument("script-name", shell_complete=complete_script_names)
+@click.option("--json", "json_output", is_flag=True, help="Output details as JSON")
 @click.pass_context
-def show(ctx: click.Context, script_name: str) -> None:
+def show(ctx: click.Context, script_name: str, json_output: bool) -> None:
     """
     Show detailed information about an installed script.
 
@@ -685,6 +746,10 @@ def show(ctx: click.Context, script_name: str) -> None:
         console.print(f"[red]Error:[/red] Script '{script_name}' not found.")
         sys.exit(1)
         return  # Help type checker understand this is unreachable
+
+    if json_output:
+        click.echo(json.dumps({"script": _script_to_json(script_info)}, indent=2))
+        return
 
     display_script_details(script_info, console)
 
@@ -746,6 +811,7 @@ def remove(
     help="Re-resolve dependencies from repository (reads requirements.txt again)",
 )
 @click.option("--dry-run", is_flag=True, help="Show what would be updated without applying changes")
+@click.option("--json", "json_output", is_flag=True, help="Output update results as JSON")
 @click.pass_context
 def update(
     ctx: click.Context,
@@ -755,6 +821,7 @@ def update(
     exact: bool | None,
     refresh_deps: bool,
     dry_run: bool,
+    json_output: bool,
 ) -> None:
     """
     Update installed script(s) to the latest version from their repository.
@@ -804,13 +871,22 @@ def update(
 
     try:
         if all_scripts:
-            results = handler.update_all(force, exact, refresh_deps, dry_run)
+            results = handler.update_all(force, exact, refresh_deps, dry_run, show_summary=not json_output)
         else:
             assert script_name is not None
             results = [handler.update(script_name, force, exact, refresh_deps, dry_run)]
 
         if results:
-            display_update_results(results, console)
+            if json_output:
+                payload = {
+                    "results": _update_results_to_json(results),
+                    "all": all_scripts,
+                    "dry_run": dry_run,
+                }
+                click.echo(json.dumps(payload, indent=2))
+                return
+            else:
+                display_update_results(results, console)
             if dry_run:
                 console.print("[dim]Re-run without --dry-run to apply updates.[/dim]")
             elif all_scripts:
@@ -853,6 +929,7 @@ def update_all(
         exact=exact,
         refresh_deps=refresh_deps,
         dry_run=dry_run,
+        json_output=False,
     )
 
 

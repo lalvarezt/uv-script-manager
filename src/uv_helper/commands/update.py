@@ -93,6 +93,7 @@ class UpdateHandler:
         exact: bool | None,
         refresh_deps: bool = False,
         dry_run: bool = False,
+        show_summary: bool = True,
     ) -> list[tuple[str, str] | tuple[str, str, str]]:
         """
         Update all installed scripts.
@@ -102,6 +103,7 @@ class UpdateHandler:
             exact: Use --exact flag in shebang
             refresh_deps: Re-resolve dependencies from repository
             dry_run: Show what would be updated without applying changes
+            show_summary: Whether to print summary heading text
 
         Returns:
             List of (script_name, status) tuples
@@ -112,10 +114,11 @@ class UpdateHandler:
             self.console.print("No scripts installed.")
             return []
 
-        if dry_run:
-            self.console.print(f"Checking {len(scripts)} script(s) for updates...")
-        else:
-            self.console.print(f"Updating {len(scripts)} script(s)...")
+        if show_summary:
+            if dry_run:
+                self.console.print(f"Checking {len(scripts)} script(s) for updates...")
+            else:
+                self.console.print(f"Updating {len(scripts)} script(s)...")
 
         results = []
         git_checked = False
