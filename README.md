@@ -98,7 +98,7 @@ uv-helper list
 uv-helper update script.py
 
 # Update all scripts
-uv-helper update-all
+uv-helper update --all
 
 # Remove a script
 uv-helper remove script.py
@@ -240,7 +240,7 @@ uv-helper remove tool.py --clean-repo --force
 Update an installed script.
 
 ```bash
-uv-helper update <script-name> [OPTIONS]
+uv-helper update [<script-name>] [OPTIONS]
 ```
 
 **Arguments:**
@@ -250,11 +250,17 @@ uv-helper update <script-name> [OPTIONS]
 **Options:**
 
 - `-f, --force`: Force reinstall even if up-to-date
+- `--all`: Update all installed scripts
 - `--refresh-deps`: Re-resolve dependencies from the repository's `requirements.txt`
 - `--exact/--no-exact`: Use `--exact` flag in shebang for precise dependency management (default: from config)
+- `--dry-run`: Show what would be updated without applying changes
 
 Aliases are automatically preserved when updating scripts. Scripts installed from tags or commits are treated as pinned
 and will not move to a different ref unless `--force` is used.
+
+When using `--all`, local installations are skipped automatically (reported as `skipped (local)`) because UV-Helper
+needs access to the original source directory to refresh them. Pinned refs are reported as `pinned to <ref>` unless
+`--force` or `--refresh-deps` is used. Dry-run output includes a `Local changes` column.
 
 **Examples:**
 
@@ -262,35 +268,8 @@ and will not move to a different ref unless `--force` is used.
 uv-helper update script.py
 uv-helper update short  # Update by alias
 uv-helper update tool.py --force
-```
-
-### `update-all`
-
-Update all installed scripts.
-
-```bash
-uv-helper update-all [OPTIONS]
-```
-
-**Options:**
-
-- `-f, --force`: Force reinstall all scripts
-- `--refresh-deps`: Re-resolve dependencies from each repository's `requirements.txt`
-- `--exact/--no-exact`: Use `--exact` flag in shebang for precise dependency management (default: from config)
-- `--dry-run`: Show what would be updated without applying changes
-
-Local installations are skipped automatically (reported as `skipped (local)`) because UV-Helper
-needs access to the original source directory to refresh them. Scripts installed from tags or commits are treated as
-pinned and reported as `pinned to <ref>` when running without `--force` or `--refresh-deps`.
-When a repository has local custom changes, dry-run may report `would update (local custom changes present)`.
-UV-managed shebang/metadata edits are treated as non-blocking and reapplied during update.
-Dry-run output includes a `Local changes` column (`Yes`, `No`, `No (managed)`, or `Unknown`).
-
-**Examples:**
-
-```bash
-uv-helper update-all
-uv-helper update-all --dry-run
+uv-helper update --all
+uv-helper update --all --dry-run
 ```
 
 ### `doctor`

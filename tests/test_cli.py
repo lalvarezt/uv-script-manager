@@ -159,7 +159,7 @@ def test_cli_local_install_update_and_remove(tmp_path: Path, monkeypatch) -> Non
     assert script_info.source_path == source_dir
     assert script_info.dependencies == ["requests"]
 
-    update_all_result = runner.invoke(cli, ["update-all"])
+    update_all_result = runner.invoke(cli, ["update", "--all"])
     assert update_all_result.exit_code == 0, update_all_result.output
     assert "skipped (local)" in update_all_result.output
 
@@ -345,6 +345,57 @@ def test_cli_update_nonexistent_script(tmp_path: Path, monkeypatch) -> None:
 
     assert result.exit_code != 0
     assert "not found" in result.output.lower()
+
+
+def test_cli_update_requires_script_name_or_all(tmp_path: Path, monkeypatch) -> None:
+    """Update should require either SCRIPT_NAME or --all."""
+    runner = CliRunner()
+
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, tmp_path / "repos", tmp_path / "bin", tmp_path / "state.json")
+
+    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    result = runner.invoke(cli, ["update"])
+
+    assert result.exit_code != 0
+    assert "Missing SCRIPT_NAME or --all" in result.output
+
+
+def test_cli_update_rejects_script_name_with_all(tmp_path: Path, monkeypatch) -> None:
+    """Update should reject SCRIPT_NAME when --all is provided."""
+    runner = CliRunner()
+
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, tmp_path / "repos", tmp_path / "bin", tmp_path / "state.json")
+
+    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    result = runner.invoke(cli, ["update", "tool.py", "--all"])
+
+    assert result.exit_code != 0
+    assert "Cannot use SCRIPT_NAME and --all together" in result.output
+
+
+def test_cli_update_all_alias_is_hidden_but_still_available(tmp_path: Path, monkeypatch) -> None:
+    """update-all should remain callable as a hidden compatibility alias."""
+    runner = CliRunner()
+
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, tmp_path / "repos", tmp_path / "bin", tmp_path / "state.json")
+
+    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    help_result = runner.invoke(cli, ["--help"])
+    assert help_result.exit_code == 0, help_result.output
+    assert "update-all" not in help_result.output
+
+    alias_result = runner.invoke(cli, ["update-all"])
+    assert alias_result.exit_code == 0, alias_result.output
+    assert "No scripts installed." in alias_result.output
 
 
 def test_cli_local_update_without_copy_parent_dir(tmp_path: Path, monkeypatch) -> None:
@@ -574,7 +625,7 @@ def test_cli_import_dry_run_legacy_commit_like_ref_uses_at(tmp_path: Path) -> No
 @REQUIRES_UV
 @REQUIRES_GIT
 def test_cli_update_all_reports_local_and_pinned_statuses(tmp_path: Path) -> None:
-    """update-all should report local scripts as skipped and pinned refs as pinned."""
+    """update --all should report local scripts as skipped and pinned refs as pinned."""
     runner = CliRunner()
 
     repo_dir = tmp_path / "repos"
@@ -613,7 +664,7 @@ def test_cli_update_all_reports_local_and_pinned_statuses(tmp_path: Path) -> Non
         )
     )
 
-    result = runner.invoke(cli, ["--config", str(config_path), "update-all"])
+    result = runner.invoke(cli, ["--config", str(config_path), "update", "--all"])
 
     assert result.exit_code == 0, result.output
     assert "skipped (local)" in result.output
@@ -623,7 +674,7 @@ def test_cli_update_all_reports_local_and_pinned_statuses(tmp_path: Path) -> Non
 @REQUIRES_UV
 @REQUIRES_GIT
 def test_cli_update_all_dry_run_reports_would_update_without_mutation(tmp_path: Path) -> None:
-    """Dry-run update-all should report updates without modifying state or cloning."""
+    """Dry-run update --all should report updates without modifying state or cloning."""
     runner = CliRunner()
 
     repo_dir = tmp_path / "repos"
@@ -662,7 +713,7 @@ def test_cli_update_all_dry_run_reports_would_update_without_mutation(tmp_path: 
         )
     )
 
-    result = runner.invoke(cli, ["--config", str(config_path), "update-all", "--dry-run"])
+    result = runner.invoke(cli, ["--config", str(config_path), "update", "--all", "--dry-run"])
 
     assert result.exit_code == 0, result.output
     assert "Local" in result.output
@@ -679,7 +730,7 @@ def test_cli_update_all_dry_run_reports_would_update_without_mutation(tmp_path: 
 @REQUIRES_UV
 @REQUIRES_GIT
 def test_cli_update_all_dry_run_refresh_deps_marks_pinned_as_would_update(tmp_path: Path) -> None:
-    """Dry-run with --refresh-deps should report pinned refs as would update."""
+    """Dry-run update --all with --refresh-deps should report pinned refs as would update."""
     runner = CliRunner()
 
     repo_dir = tmp_path / "repos"
@@ -707,7 +758,7 @@ def test_cli_update_all_dry_run_refresh_deps_marks_pinned_as_would_update(tmp_pa
 
     result = runner.invoke(
         cli,
-        ["--config", str(config_path), "update-all", "--dry-run", "--refresh-deps"],
+        ["--config", str(config_path), "update", "--all", "--dry-run", "--refresh-deps"],
     )
 
     assert result.exit_code == 0, result.output
@@ -771,7 +822,7 @@ def test_cli_update_all_dry_run_warns_when_local_changes_present(tmp_path: Path)
         )
     )
 
-    result = runner.invoke(cli, ["--config", str(config_path), "update-all", "--dry-run"])
+    result = runner.invoke(cli, ["--config", str(config_path), "update", "--all", "--dry-run"])
 
     assert result.exit_code == 0, result.output
     assert "would update (local custom changes present)" in result.output
@@ -847,7 +898,7 @@ def test_cli_update_all_dry_run_ignores_uv_managed_script_changes(tmp_path: Path
         )
     )
 
-    result = runner.invoke(cli, ["--config", str(config_path), "update-all", "--dry-run"])
+    result = runner.invoke(cli, ["--config", str(config_path), "update", "--all", "--dry-run"])
 
     assert result.exit_code == 0, result.output
     assert "would update" in result.output

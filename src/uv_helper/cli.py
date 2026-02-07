@@ -450,7 +450,8 @@ def remove(
 
 
 @cli.command()
-@click.argument("script-name", shell_complete=complete_script_names)
+@click.argument("script-name", required=False, shell_complete=complete_script_names)
+@click.option("--all", "all_scripts", is_flag=True, help="Update all installed scripts")
 @click.option("--force", "-f", is_flag=True, help="Force reinstall even if up-to-date")
 @click.option(
     "--exact/--no-exact",
@@ -462,10 +463,19 @@ def remove(
     is_flag=True,
     help="Re-resolve dependencies from repository (reads requirements.txt again)",
 )
+@click.option("--dry-run", is_flag=True, help="Show what would be updated without applying changes")
 @click.pass_context
-def update(ctx: click.Context, script_name: str, force: bool, exact: bool | None, refresh_deps: bool) -> None:
+def update(
+    ctx: click.Context,
+    script_name: str | None,
+    all_scripts: bool,
+    force: bool,
+    exact: bool | None,
+    refresh_deps: bool,
+    dry_run: bool,
+) -> None:
     """
-    Update an installed script to the latest version from its repository.
+    Update installed script(s) to the latest version from their repository.
 
     Fetches the latest changes from the script's Git repository and checks
     if the commit hash has changed. If an update is available (or --force
@@ -478,24 +488,53 @@ def update(ctx: click.Context, script_name: str, force: bool, exact: bool | None
         uv-helper update myscript
 
         \b
+        # Update all installed scripts
+        uv-helper update --all
+
+        \b
         # Force reinstall even if already up-to-date
         uv-helper update myscript --force
 
         \b
         # Update and re-resolve dependencies from requirements.txt
         uv-helper update myscript --refresh-deps
+
+        \b
+        # Preview bulk updates without changing anything
+        uv-helper update --all --dry-run
     """
+    if all_scripts and script_name:
+        console.print("[red]Error:[/red] Cannot use SCRIPT_NAME and --all together.")
+        console.print(
+            "Use [cyan]uv-helper update <script-name>[/cyan] or [cyan]uv-helper update --all[/cyan]."
+        )
+        sys.exit(1)
+
+    if not all_scripts and not script_name:
+        console.print("[red]Error:[/red] Missing SCRIPT_NAME or --all.")
+        console.print(
+            "Use [cyan]uv-helper update <script-name>[/cyan] or [cyan]uv-helper update --all[/cyan]."
+        )
+        sys.exit(1)
+
     config = ctx.obj["config"]
     handler = UpdateHandler(config, console)
 
     try:
-        result = handler.update(script_name, force, exact, refresh_deps)
-        display_update_results([result], console)
+        if all_scripts:
+            results = handler.update_all(force, exact, refresh_deps, dry_run)
+        else:
+            assert script_name is not None
+            results = [handler.update(script_name, force, exact, refresh_deps, dry_run)]
+
+        if results:
+            display_update_results(results, console)
     except (ValueError, FileNotFoundError, ScriptInstallerError):
         sys.exit(1)
 
 
-@cli.command("update-all")
+# TODO(next-major): Remove hidden `update-all` compatibility alias.
+@cli.command("update-all", hidden=True)
 @click.option("--force", "-f", is_flag=True, help="Force reinstall all scripts")
 @click.option(
     "--exact/--no-exact",
@@ -516,40 +555,16 @@ def update_all(
     refresh_deps: bool,
     dry_run: bool,
 ) -> None:
-    """
-    Update all installed scripts to their latest versions.
-
-    Iterates through all installed scripts and updates each one by fetching
-    the latest changes from their respective Git repositories. Displays a
-    summary table showing which scripts were updated and their status.
-
-    Examples:
-
-        \b
-        # Update all scripts if newer versions are available
-        uv-helper update-all
-
-        \b
-        # Force reinstall all scripts
-        uv-helper update-all --force
-
-        \b
-        # Update all and re-resolve dependencies from requirements.txt
-        uv-helper update-all --refresh-deps
-
-        \b
-        # Preview updates without changing anything
-        uv-helper update-all --dry-run
-    """
-    config = ctx.obj["config"]
-    handler = UpdateHandler(config, console)
-
-    try:
-        results = handler.update_all(force, exact, refresh_deps, dry_run)
-        if results:
-            display_update_results(results, console)
-    except ScriptInstallerError:
-        sys.exit(1)
+    """Compatibility alias for `update --all`."""
+    ctx.invoke(
+        update,
+        script_name=None,
+        all_scripts=True,
+        force=force,
+        exact=exact,
+        refresh_deps=refresh_deps,
+        dry_run=dry_run,
+    )
 
 
 @cli.command("export")

@@ -38,8 +38,13 @@ class UpdateHandler:
         self.state_manager = StateManager(config.state_file)
 
     def update(
-        self, script_name: str, force: bool, exact: bool | None, refresh_deps: bool = False
-    ) -> tuple[str, str]:
+        self,
+        script_name: str,
+        force: bool,
+        exact: bool | None,
+        refresh_deps: bool = False,
+        dry_run: bool = False,
+    ) -> tuple[str, str] | tuple[str, str, str]:
         """
         Update a single script.
 
@@ -48,9 +53,10 @@ class UpdateHandler:
             force: Force reinstall even if up-to-date
             exact: Use --exact flag in shebang
             refresh_deps: Re-resolve dependencies from repository
+            dry_run: Show what would be updated without applying changes
 
         Returns:
-            Tuple of (script_name, status)
+            Tuple of (script_name, status) or (script_name, status, local_changes)
         """
         # Check if script exists - try by original name or symlink name
         script_info = self.state_manager.get_script_flexible(script_name)
@@ -59,6 +65,21 @@ class UpdateHandler:
             raise ValueError(f"Script '{script_name}' not found")
 
         display_name = script_info.display_name
+
+        if dry_run:
+            if script_info.source_type == SourceType.LOCAL:
+                return (display_name, "skipped (local)", "N/A")
+
+            handle_git_error(self.console, lambda: verify_git_available())
+            local_change_state = get_local_change_state(script_info.repo_path, script_info.name)
+            status = self._check_git_script_update_status(
+                script_info,
+                force,
+                refresh_deps,
+                local_change_state,
+            )
+            local_changes = self._format_local_changes_label(local_change_state)
+            return (display_name, status, local_changes)
 
         # Branch based on source type (use actual script name from state, not user input)
         if script_info.source_type == SourceType.LOCAL:
