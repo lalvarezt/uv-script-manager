@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from rich.console import Console
 
 from uv_helper.cli import cli
 from uv_helper.constants import GIT_SHORT_HASH_LENGTH, SourceType
@@ -60,8 +61,6 @@ def _write_config(
     repo_dir: Path,
     install_dir: Path,
     state_file: Path,
-    list_verbose_fallback: bool | None = None,
-    list_min_width: int | None = None,
 ) -> None:
     lines = [
         "[global.paths]",
@@ -78,19 +77,6 @@ def _write_config(
         "auto_chmod = true",
         "use_exact_flag = true",
     ]
-
-    if list_verbose_fallback is not None or list_min_width is not None:
-        lines.extend(
-            [
-                "",
-                "[commands.list]",
-            ]
-        )
-        if list_verbose_fallback is not None:
-            value = "true" if list_verbose_fallback else "false"
-            lines.append(f"verbose_fallback = {value}")
-        if list_min_width is not None:
-            lines.append(f"min_width = {list_min_width}")
 
     config_path.write_text(
         "\n".join(lines),
@@ -1162,48 +1148,6 @@ def test_cli_show_displays_local_changes_for_git_scripts(tmp_path: Path) -> None
     assert "Needs attention" in result.output
 
 
-def test_cli_list_verbose_ignores_fallback_config_on_narrow_width(tmp_path: Path, monkeypatch) -> None:
-    """list --verbose should stay verbose even when fallback config is enabled."""
-    runner = CliRunner()
-
-    repo_dir = tmp_path / "repos"
-    install_dir = tmp_path / "bin"
-    state_file = tmp_path / "state.json"
-    config_path = tmp_path / "config.toml"
-    _write_config(
-        config_path,
-        repo_dir,
-        install_dir,
-        state_file,
-        list_verbose_fallback=True,
-        list_min_width=200,
-    )
-
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-
-    state_manager = StateManager(state_file)
-    state_manager.add_script(
-        ScriptInfo(
-            name="tool.py",
-            source_type=SourceType.LOCAL,
-            installed_at=datetime.now(),
-            repo_path=repo_dir / "tool-repo",
-            source_path=tmp_path,
-        )
-    )
-
-    result = runner.invoke(
-        cli,
-        ["--config", str(config_path), "list", "--verbose"],
-        terminal_width=180,
-    )
-
-    assert result.exit_code == 0, result.output
-    assert "Falling back" not in result.output
-    assert result.output.count("┳") == 6
-    assert "Local" in result.output
-
-
 def test_cli_list_full_disables_truncation(tmp_path: Path, monkeypatch) -> None:
     """list --full should show untruncated values on narrow terminals."""
     runner = CliRunner()
@@ -1212,7 +1156,7 @@ def test_cli_list_full_disables_truncation(tmp_path: Path, monkeypatch) -> None:
     install_dir = tmp_path / "bin"
     state_file = tmp_path / "state.json"
     config_path = tmp_path / "config.toml"
-    _write_config(config_path, repo_dir, install_dir, state_file, list_min_width=200)
+    _write_config(config_path, repo_dir, install_dir, state_file)
 
     monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
 
@@ -1242,6 +1186,46 @@ def test_cli_list_full_disables_truncation(tmp_path: Path, monkeypatch) -> None:
     assert narrow_result.exit_code == 0, narrow_result.output
     assert full_result.exit_code == 0, full_result.output
     assert "…" in narrow_result.output
+    assert "…" not in full_result.output
+
+
+def test_cli_list_full_changes_wide_verbose_output_for_long_values(tmp_path: Path, monkeypatch) -> None:
+    """list --full should avoid ellipsis even on wide terminals with long values."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_helper.cli.console", Console(width=240))
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool-repo",
+            source_path=Path("/very/long/source/path/that/keeps/going/on/for/a/while/for/testing/purposes"),
+            dependencies=["verylongdependencyname_" * 5],
+        )
+    )
+
+    verbose_result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--verbose"],
+    )
+    full_result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--verbose", "--full"],
+    )
+
+    assert verbose_result.exit_code == 0, verbose_result.output
+    assert full_result.exit_code == 0, full_result.output
+    assert "…" in verbose_result.output
     assert "…" not in full_result.output
 
 
