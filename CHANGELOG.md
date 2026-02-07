@@ -9,14 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `list --verbose` narrow-terminal fallback with warning support, controlled by `commands.list.verbose_fallback`
-- Configurable minimum width for verbose list output via `commands.list.min_width`
+- Interactive script selection for `install` when `--script` is omitted in an interactive terminal
+- `list` filters and sorting controls: `--source`, `--status`, `--ref`, and `--sort`
+- JSON output modes for `list`, `show`, and `update` via `--json`
+- `update --all` support in the main `update` command, including `--dry-run`
+- `remove --dry-run` to preview removals without mutating state
+- Impact summaries before `update --all` and `remove --clean-repo`
+- `list --full` option to disable table-column truncation and wrap long values
 - Repository config template at `src/uv_helper/config.toml` now copied to `~/.config/uv-helper/config.toml` when missing
 - Config schema metadata (`[meta].schema_version`) and versioned config migrations for legacy layouts
 
 ### Changed
 
 - Configuration structure now uses nested sections (`[global.paths]`, `[global.git]`, `[global.install]`, `[commands.list]`)
+- `uv-helper update --all` is now the canonical bulk-update flow (`update-all` remains as a hidden compatibility alias)
+- List rendering now adapts column widths to terminal size, and `--full` disables truncation for long values
+- Local-change and update status labels now use clearer wording in table and detail views (for example `Needs attention`, `Pinned (...)`, and `Local-only`)
 
 ## [1.4.0] - 2026-02-06
 

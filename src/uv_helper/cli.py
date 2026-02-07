@@ -1,9 +1,10 @@
 """CLI interface for UV-Helper."""
 
+import json
 import os
 import sys
-import json
 from pathlib import Path
+from typing import cast
 
 # Runtime version check - must be before other imports
 if sys.version_info < (3, 11):
@@ -320,9 +321,9 @@ def _update_results_to_json(results: list[tuple[str, str] | tuple[str, str, str]
     payload: list[dict[str, object]] = []
     for result in results:
         if len(result) == 3:
-            script_name, status, local_changes = result
+            script_name, status, local_changes = cast(tuple[str, str, str], result)
         else:
-            script_name, status = result
+            script_name, status = cast(tuple[str, str], result)
             local_changes = None
         payload.append(
             {
@@ -839,6 +840,7 @@ def remove(
         if script_info is None:
             console.print(f"[red]Error:[/red] Script '{script_name}' not found.")
             sys.exit(1)
+        assert script_info is not None
 
         console.print("[bold]Dry run:[/bold] remove")
         console.print(f"  Script: {script_info.display_name}")

@@ -179,14 +179,24 @@ uv-helper list [OPTIONS]
 
 - `--verbose`, `-v`: Show detailed information (commit hash, local changes, and dependencies)
 - `--tree`: Display scripts grouped by source in a tree view
-- `--full`: Disable truncation and show full table values
+- `--full`: Disable table-column truncation; long values wrap instead of using `…`
+- `--source TEXT`: Filter by source URL/path substring
+- `--status TEXT`: Filter by status (`local`, `git`, `pinned`, `needs-attention`, `clean`, `managed`, `unknown`)
+- `--ref TEXT`: Filter Git refs by substring
+- `--sort TEXT`: Sort by `name`, `updated`, `source`, or `status`
+- `--json`: Output list as JSON
+
+When values already fit, `uv-helper list --verbose` and `uv-helper list --verbose --full` can look the same.
 
 **Examples:**
 
 ```bash
 uv-helper list
 uv-helper list --verbose
+uv-helper list --verbose --full
 uv-helper list --tree
+uv-helper list --status pinned --sort updated
+uv-helper list --json
 ```
 
 ### `show`
@@ -194,18 +204,23 @@ uv-helper list --tree
 Show detailed information about an installed script.
 
 ```bash
-uv-helper show <script-name>
+uv-helper show <script-name> [--json]
 ```
 
 **Arguments:**
 
 - `script-name`: Name of the script to show (can be original name or alias)
 
+**Options:**
+
+- `--json`: Output script details as JSON
+
 **Examples:**
 
 ```bash
 uv-helper show script.py
 uv-helper show short  # Show by alias
+uv-helper show script.py --json
 ```
 
 ### `remove`
@@ -224,6 +239,7 @@ uv-helper remove <script-name> [OPTIONS]
 
 - `-c, --clean-repo`: Remove cloned repository if no other scripts use it
 - `-f, --force`: Skip confirmation prompt
+- `--dry-run`: Preview removal without making changes
 
 During removal the CLI reports the original source: Git installs show the repository URL, while
 local installs show the stored source directory.
@@ -234,6 +250,7 @@ local installs show the stored source directory.
 uv-helper remove script.py
 uv-helper remove short  # Remove by alias
 uv-helper remove tool.py --clean-repo --force
+uv-helper remove tool.py --dry-run
 ```
 
 ### `update`
@@ -255,6 +272,7 @@ uv-helper update [<script-name>] [OPTIONS]
 - `--refresh-deps`: Re-resolve dependencies from the repository's `requirements.txt`
 - `--exact/--no-exact`: Use `--exact` flag in shebang for precise dependency management (default: from config)
 - `--dry-run`: Show what would be updated without applying changes
+- `--json`: Output update results as JSON
 
 Aliases are automatically preserved when updating scripts. Scripts installed from tags or commits are treated as pinned
 and will not move to a different ref unless `--force` is used.
@@ -271,6 +289,7 @@ uv-helper update short  # Update by alias
 uv-helper update tool.py --force
 uv-helper update --all
 uv-helper update --all --dry-run
+uv-helper update --all --dry-run --json
 ```
 
 ### `doctor`
@@ -449,11 +468,7 @@ auto_chmod = true
 use_exact_flag = true
 
 [commands.list]
-# Legacy compatibility options (currently ignored)
-verbose_fallback = false
-
-# Legacy compatibility options (currently ignored)
-min_width = 120
+# Reserved for future list command options
 ```
 
 ### Custom Configuration
