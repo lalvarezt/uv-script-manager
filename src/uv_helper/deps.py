@@ -1,5 +1,6 @@
 """Dependency management for UV-Helper."""
 
+import warnings
 from pathlib import Path
 
 import requirements
@@ -37,13 +38,25 @@ def parse_requirements_file(requirements_path: Path) -> list[str]:
     ignored_prefixes = ("-c", "--constraint", "--index-url", "--extra-index-url", "--find-links")
 
     with open(requirements_path, encoding="utf-8") as f:
-        for req in requirements.parse(f):
-            line = req.line.strip()
-            if not line:
-                continue
-            if line.startswith(ignored_prefixes):
-                continue
-            dependencies.append(line)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"Unused option -c \(constraint\)\. Skipping\.",
+                category=UserWarning,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"Private repos not supported\. Skipping\.",
+                category=UserWarning,
+            )
+
+            for req in requirements.parse(f):
+                line = req.line.strip()
+                if not line:
+                    continue
+                if line.startswith(ignored_prefixes):
+                    continue
+                dependencies.append(line)
 
     return dependencies
 
