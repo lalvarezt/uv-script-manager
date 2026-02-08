@@ -92,15 +92,11 @@ def _render_local_changes_state(local_state: str) -> str:
     """Render local change state with consistent labels and styles."""
     if local_state in ("N/A", "n/a"):
         return "[dim]N/A[/dim]"
+
     status_key = _local_change_state_to_status_key(local_state)
-    if status_key == "unknown":
-        return "[dim]• Unknown[/dim]"
-    if status_key == "managed":
-        return render_script_status("managed")
-    if status_key == "clean":
-        return render_script_status("clean")
-    if status_key == "needs-attention":
-        return render_script_status("needs-attention")
+    if status_key in ("managed", "clean", "needs-attention"):
+        return render_script_status(status_key)
+
     return "[dim]• Unknown[/dim]"
 
 

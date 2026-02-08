@@ -137,7 +137,11 @@ def test_install_no_deps_verbose_prints_skip_message(tmp_path: Path, monkeypatch
     source_dir.mkdir()
     (source_dir / "tool.py").write_text("print('x')\n", encoding="utf-8")
 
-    monkeypatch.setattr(handler, "_install_scripts", lambda scripts, context, options: [])
+    monkeypatch.setattr(
+        handler,
+        "_install_single_script",
+        lambda script_name, context, options: (script_name, True, None),
+    )
 
     request = InstallRequest(
         with_deps=None,

@@ -161,7 +161,7 @@ class InstallHandler:
             )
 
         # Determine installation directory
-        install_directory = request.install_dir if request.install_dir else self.config.install_dir
+        install_directory = request.install_dir or self.config.install_dir
         ensure_dir(install_directory)
 
         # Create installation context and options
@@ -185,7 +185,7 @@ class InstallHandler:
         )
 
         # Install scripts
-        return self._install_scripts(scripts, context, options)
+        return [self._install_single_script(script_name, context, options) for script_name in scripts]
 
     def _check_existing_scripts(self, scripts: tuple[str, ...], force: bool) -> bool:
         """
@@ -198,10 +198,9 @@ class InstallHandler:
         Returns:
             True if should proceed, False if cancelled
         """
-        existing_scripts = []
-        for script_name in scripts:
-            if self.state_manager.get_script(script_name):
-                existing_scripts.append(script_name)
+        existing_scripts = [
+            script_name for script_name in scripts if self.state_manager.get_script(script_name)
+        ]
 
         if existing_scripts and not force:
             script_list = ", ".join(existing_scripts)
@@ -351,29 +350,6 @@ class InstallHandler:
         except (FileNotFoundError, OSError) as e:
             self.console.print(f"[red]Error:[/red] Dependencies: {e}")
             raise
-
-    def _install_scripts(
-        self,
-        scripts: tuple[str, ...],
-        context: InstallationContext,
-        options: ScriptInstallOptions,
-    ) -> list[tuple[str, bool, Path | None | str]]:
-        """Install all requested scripts.
-
-        Args:
-            scripts: Tuple of script names to install
-            context: Installation source context
-            options: Installation configuration options
-
-        Returns:
-            List of installation results
-        """
-        results = []
-        for script_name in scripts:
-            result = self._install_single_script(script_name, context, options)
-            results.append(result)
-
-        return results
 
     def _install_single_script(
         self,

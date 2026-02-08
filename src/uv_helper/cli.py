@@ -236,11 +236,6 @@ def _prompt_for_script_selection(candidates: list[str]) -> tuple[str, ...]:
             console.print(f"[red]Error:[/red] {e}. Enter values like [cyan]1[/cyan] or [cyan]1,3-5[/cyan].")
 
 
-def _get_list_status(script, local_changes_cache: dict[tuple[Path, str], str]) -> str:
-    """Derive list status label used for filtering and sorting."""
-    return get_script_status_key(script, local_changes_cache)
-
-
 def _filter_and_sort_scripts(
     scripts,
     source_filter: str | None,
@@ -281,7 +276,9 @@ def _filter_and_sort_scripts(
             filtered = [script for script in filtered if script.source_type == SourceType.GIT]
         else:
             filtered = [
-                script for script in filtered if _get_list_status(script, local_changes_cache) == status_key
+                script
+                for script in filtered
+                if get_script_status_key(script, local_changes_cache) == status_key
             ]
 
     if sort_by == "updated":
@@ -299,7 +296,7 @@ def _filter_and_sort_scripts(
         filtered = sorted(
             filtered,
             key=lambda script: (
-                _get_list_status(script, local_changes_cache),
+                get_script_status_key(script, local_changes_cache),
                 script.display_name.lower(),
             ),
         )
@@ -334,7 +331,7 @@ def _script_to_json(
     }
 
     status_cache = local_changes_cache if local_changes_cache is not None else {}
-    payload["status"] = _get_list_status(script, status_cache)
+    payload["status"] = get_script_status_key(script, status_cache)
     return payload
 
 
@@ -399,7 +396,7 @@ def _print_needs_attention_hint(scripts) -> None:
     needs_attention = [
         script.display_name
         for script in scripts
-        if _get_list_status(script, local_changes_cache) == "needs-attention"
+        if get_script_status_key(script, local_changes_cache) == "needs-attention"
     ]
 
     if not needs_attention:
@@ -763,7 +760,7 @@ def list_scripts(
                 if verbose:
                     # Show detailed info in verbose mode
                     details = []
-                    status_key = _get_list_status(script, local_changes_by_script)
+                    status_key = get_script_status_key(script, local_changes_by_script)
                     status_detail = script.ref if status_key == "pinned" else None
                     details.append(f"status: {render_script_status(status_key, status_detail)}")
                     if script.commit_hash:
@@ -1519,7 +1516,7 @@ def doctor(ctx: click.Context, repair: bool) -> None:
         status_counts: dict[str, int] = {}
         local_changes_cache: dict[tuple[Path, str], str] = {}
         for script in scripts:
-            status_key = _get_list_status(script, local_changes_cache)
+            status_key = get_script_status_key(script, local_changes_cache)
             status_counts[status_key] = status_counts.get(status_key, 0) + 1
 
         status_table = Table(show_header=False, box=None, padding=(0, 2))
