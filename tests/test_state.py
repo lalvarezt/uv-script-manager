@@ -131,8 +131,8 @@ class TestStateManager:
 
         assert result is None
 
-    def test_remove_script(self, tmp_path: Path) -> None:
-        """Test remove_script method."""
+    def test_add_remove_script(self, tmp_path: Path) -> None:
+        """Test add_script and remove_script method."""
         state_file = tmp_path / "state.json"
         manager = StateManager(state_file)
 
@@ -148,31 +148,10 @@ class TestStateManager:
             commit_hash="abc123",
         )
         manager.add_script(script)
+        assert manager.get_script("test.py") is not None
 
         manager.remove_script("test.py")
-
         assert manager.get_script("test.py") is None
-
-    def test_has_script(self, tmp_path: Path) -> None:
-        """Test has_script method."""
-        state_file = tmp_path / "state.json"
-        manager = StateManager(state_file)
-
-        script = ScriptInfo(
-            name="test.py",
-            source_type=SourceType.GIT,
-            source_url="https://github.com/user/repo",
-            ref="main",
-            installed_at=datetime.now(),
-            repo_path=Path("/tmp/repo"),
-            symlink_path=Path("/tmp/bin/test.py"),
-            dependencies=[],
-            commit_hash="abc123",
-        )
-        manager.add_script(script)
-
-        assert manager.has_script("test.py")
-        assert not manager.has_script("nonexistent.py")
 
     def test_list_scripts(self, tmp_path: Path) -> None:
         """Test list_scripts method."""

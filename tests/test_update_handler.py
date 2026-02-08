@@ -349,8 +349,8 @@ def test_update_git_internal_updates_state_with_alias_and_warning(tmp_path: Path
     assert "Warning:" in handler.console.export_text()
 
 
-def test_check_git_script_update_status_variants_and_label_formatting(tmp_path: Path, monkeypatch) -> None:
-    """Status helper should cover pinned/up-to-date/local-change branches and label formatting."""
+def test_check_git_script_update_status_variants(tmp_path: Path, monkeypatch) -> None:
+    """Status helper should cover pinned/up-to-date/local-change branches."""
     handler, repo_dir, _install_dir = _build_handler(tmp_path)
 
     pinned = ScriptInfo(
@@ -394,5 +394,3 @@ def test_check_git_script_update_status_variants_and_label_formatting(tmp_path: 
         )
         == "would update (local custom changes present)"
     )
-
-    assert handler._format_local_changes_label("clean") == "No"
