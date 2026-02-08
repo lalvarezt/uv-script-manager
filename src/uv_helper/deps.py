@@ -137,17 +137,3 @@ def resolve_dependencies(
 
     # Case 3: No dependencies
     return []
-
-
-def format_dependency_for_uv(dep: str) -> str:
-    """
-    Format dependency string for uv command.
-
-    Args:
-        dep: Dependency string (e.g., "requests>=2.31.0" or "click")
-
-    Returns:
-        Formatted dependency string
-    """
-    # UV accepts standard pip dependency specifiers
-    return dep.strip()

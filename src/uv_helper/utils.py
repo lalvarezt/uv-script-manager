@@ -4,12 +4,10 @@ import logging
 import os
 import shutil
 import subprocess
-import time
 from collections.abc import Callable
 from contextlib import contextmanager
-from functools import wraps
 from pathlib import Path
-from typing import Iterator, ParamSpec, TypeVar, cast
+from typing import Iterator, TypeVar, cast
 
 from giturlparse import parse as parse_git_url_base
 from giturlparse import validate as validate_git_url
@@ -21,7 +19,6 @@ from rich.prompt import Confirm
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
-P = ParamSpec("P")
 
 
 def ensure_dir(path: Path) -> Path:
@@ -97,19 +94,6 @@ def sanitize_directory_name(name: str) -> str:
         Sanitized directory name
     """
     return sanitize_filename(name, replacement_text="-")
-
-
-def check_command_exists(cmd: str) -> bool:
-    """
-    Check if a command exists in PATH.
-
-    Args:
-        cmd: Command name to check
-
-    Returns:
-        True if command exists, False otherwise
-    """
-    return shutil.which(cmd) is not None
 
 
 def expand_path(path: str) -> Path:
@@ -312,81 +296,6 @@ def copy_directory_contents(source: Path, dest: Path) -> None:
             shutil.copytree(item, dest_item)
         else:
             shutil.copy2(item, dest_item)
-
-
-def exponential_backoff(attempt: int, base: float = 2.0, max_delay: float = 60.0) -> float:
-    """
-    Calculate exponential backoff delay.
-
-    Args:
-        attempt: Retry attempt number (0-indexed)
-        base: Base multiplier for exponential growth
-        max_delay: Maximum delay in seconds
-
-    Returns:
-        Delay in seconds
-    """
-    delay = base**attempt
-    return min(delay, max_delay)
-
-
-def retry(
-    max_attempts: int = 3,
-    backoff: Callable[[int], float] = exponential_backoff,
-    exceptions: tuple[type[Exception], ...] = (Exception,),
-    on_retry: Callable[[Exception, int], None] | None = None,
-):
-    """
-    Decorator to retry a function on failure with exponential backoff.
-
-    Args:
-        max_attempts: Maximum number of attempts (default: 3)
-        backoff: Function that calculates delay based on attempt number
-        exceptions: Tuple of exception types to catch and retry
-        on_retry: Callback function called on each retry (exception, attempt_num)
-
-    Examples:
-        @retry(max_attempts=4, exceptions=(GitError, ConnectionError))
-        def clone_repository(url: str) -> bool:
-            # ... git clone logic ...
-            pass
-    """
-
-    def decorator(func: Callable[P, T]) -> Callable[P, T]:
-        @wraps(func)
-        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-            last_exception = None
-
-            for attempt in range(max_attempts):
-                try:
-                    return func(*args, **kwargs)
-                except exceptions as e:
-                    last_exception = e
-
-                    # Don't retry on last attempt
-                    if attempt == max_attempts - 1:
-                        break
-
-                    # Calculate delay
-                    delay = backoff(attempt)
-
-                    # Call retry callback if provided
-                    if on_retry:
-                        on_retry(e, attempt + 1)
-
-                    # Wait before retry
-                    time.sleep(delay)
-
-            # All attempts failed - raise last exception
-            if last_exception:
-                raise last_exception
-
-            # Should never reach here
-            raise RuntimeError("Retry logic error")
-
-        return wrapper
-
-    return decorator
 
 
 class ErrorContext:
