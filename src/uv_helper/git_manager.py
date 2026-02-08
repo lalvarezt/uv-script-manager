@@ -77,7 +77,7 @@ def clone_repository(
     depth: int = 1,
     ref: str | None = None,
     ref_type: str | None = None,
-) -> bool:
+) -> None:
     """
     Clone a Git repository.
 
@@ -88,9 +88,6 @@ def clone_repository(
         ref: Specific branch/tag to clone
         ref_type: Type of ref ("branch", "tag", "commit", or "default").
             When "commit", clones without --branch and checks out after.
-
-    Returns:
-        True if successful
 
     Raises:
         GitError: If clone fails
@@ -110,21 +107,17 @@ def clone_repository(
         if ref and is_commit:
             run_command(["git", "fetch", "origin", ref], cwd=target_dir, check=True)
             checkout_ref(target_dir, ref)
-        return True
     except subprocess.CalledProcessError as e:
         raise GitError(f"Failed to clone repository: {e.stderr}") from e
 
 
-def fetch_repository(repo_path: Path, fetch_tags: bool = False) -> bool:
+def fetch_repository(repo_path: Path, fetch_tags: bool = False) -> None:
     """
     Fetch updates from remote repository.
 
     Args:
         repo_path: Path to repository
         fetch_tags: Whether to fetch tags
-
-    Returns:
-        True if successful
 
     Raises:
         GitError: If fetch fails
@@ -134,7 +127,6 @@ def fetch_repository(repo_path: Path, fetch_tags: bool = False) -> bool:
         if fetch_tags:
             cmd.append("--tags")
         run_command(cmd, cwd=repo_path, check=True)
-        return True
     except subprocess.CalledProcessError as e:
         raise GitError(f"Failed to fetch repository: {e.stderr}") from e
 
@@ -161,7 +153,7 @@ def is_detached_head(repo_path: Path) -> bool:
         return True
 
 
-def update_repository(repo_path: Path, ref: str | None = None) -> bool:
+def update_repository(repo_path: Path, ref: str | None = None) -> None:
     """
     Update an existing repository.
 
@@ -171,9 +163,6 @@ def update_repository(repo_path: Path, ref: str | None = None) -> bool:
     Args:
         repo_path: Path to repository
         ref: Optional specific ref (branch, tag, or commit)
-
-    Returns:
-        True if successful
 
     Raises:
         GitError: If update fails
@@ -206,11 +195,10 @@ def update_repository(repo_path: Path, ref: str | None = None) -> bool:
 
         if is_detached_head(repo_path):
             # Tag or commit - don't pull
-            return True
+            return
 
         # Branch - pull to get latest
         run_command(["git", "pull"], cwd=repo_path, check=True)
-        return True
     except subprocess.CalledProcessError as e:
         raise GitError(f"Failed to update repository: {e.stderr}") from e
 
@@ -361,7 +349,7 @@ def clone_or_update(
     target_dir: Path,
     depth: int = 1,
     ref_type: str | None = None,
-) -> bool:
+) -> None:
     """
     Clone repository if not exists, otherwise update it.
 
@@ -371,9 +359,6 @@ def clone_or_update(
         target_dir: Directory to clone into
         depth: Clone depth
         ref_type: Type of ref ("branch", "tag", "commit", or "default")
-
-    Returns:
-        True if successful
 
     Raises:
         GitError: If operation fails
@@ -385,21 +370,15 @@ def clone_or_update(
         # Clone repository
         clone_repository(url, target_dir, depth=depth, ref=ref, ref_type=ref_type)
 
-    return True
 
-
-def verify_git_available() -> bool:
+def verify_git_available() -> None:
     """
     Verify that git command is available.
-
-    Returns:
-        True if git is available
 
     Raises:
         GitError: If git is not available
     """
     try:
         run_command(["git", "--version"], check=True)
-        return True
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         raise GitError("Git is not installed or not in PATH") from e

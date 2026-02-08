@@ -375,12 +375,9 @@ def handle_git_error(console: Console, operation: Callable[[], T], error_prefix:
     """
     from .git_manager import GitError
 
-    context = ErrorContext(
-        error_prefix,
-        suggestions={GitError: "Verify git is installed and repository URL is correct"},
-    )
-
-    result = handle_operation(console, operation, context, error_types=(GitError,))
-    if result is None:
-        raise RuntimeError("Unexpected missing result from git operation")
-    return result
+    try:
+        return operation()
+    except GitError as e:
+        console.print(f"[red]Error:[/red] {error_prefix}: {e}")
+        console.print("[cyan]Suggestion:[/cyan] Verify git is installed and repository URL is correct")
+        raise

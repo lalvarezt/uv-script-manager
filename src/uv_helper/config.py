@@ -84,16 +84,10 @@ class GlobalConfig(BaseModel):
     install: GlobalInstallConfig
 
 
-class ListCommandConfig(BaseModel):
-    """List command configuration."""
-
-    pass
-
-
 class CommandsConfig(BaseModel):
     """Commands configuration section."""
 
-    list: ListCommandConfig
+    list: dict[str, Any] = Field(default_factory=dict)
 
 
 class MetaConfig(BaseModel):

@@ -90,18 +90,6 @@ class StateManager:
         result = self.scripts.get(Script.name == name)
         return ScriptInfo.model_validate(result) if result else None
 
-    def has_script(self, name: str) -> bool:
-        """
-        Check if script is installed.
-
-        Args:
-            name: Script name
-
-        Returns:
-            True if script is installed
-        """
-        return self.get_script(name) is not None
-
     def get_script_flexible(self, name: str) -> ScriptInfo | None:
         """
         Get script by name or symlink name.

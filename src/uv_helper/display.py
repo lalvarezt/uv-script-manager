@@ -11,6 +11,16 @@ from rich.table import Table
 from . import local_changes
 from .constants import SourceType
 from .state import ScriptInfo
+from .update_status import (
+    UPDATE_STATUS_SKIPPED_LOCAL,
+    UPDATE_STATUS_UP_TO_DATE,
+    UPDATE_STATUS_UPDATED,
+    UPDATE_STATUS_WOULD_UPDATE,
+    UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES,
+    UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES_LEGACY,
+    is_error_status,
+    parse_pinned_status,
+)
 
 
 def _normalize_status_key(status_key: str) -> str:
@@ -21,9 +31,9 @@ def _normalize_status_key(status_key: str) -> str:
         "needs attention": "needs-attention",
         "needs_attention": "needs-attention",
         "local-only": "local",
-        "skipped (local)": "local",
+        UPDATE_STATUS_SKIPPED_LOCAL: "local",
         "no": "clean",
-        "up-to-date": "clean",
+        UPDATE_STATUS_UP_TO_DATE: "clean",
         "no (managed)": "managed",
     }
     normalized = aliases.get(normalized, normalized)
@@ -68,6 +78,33 @@ def get_script_status_key(script: ScriptInfo, local_changes_cache: dict[tuple[Pa
         local_changes_cache[script_key] = local_changes.get_local_change_state(script.repo_path, script.name)
 
     return _local_change_state_to_status_key(local_changes_cache[script_key])
+
+
+def get_script_display_name(script: ScriptInfo, show_alias_target: bool = False) -> str:
+    """Return script display name, optionally showing alias relationship."""
+    if script.symlink_path:
+        symlink_name = script.symlink_path.name
+        if show_alias_target and symlink_name != script.name:
+            return f"{symlink_name} -> {script.name}"
+        return symlink_name
+    return script.name
+
+
+def get_script_source_display(
+    script: ScriptInfo,
+    *,
+    shorten_git: bool = True,
+    missing_git: str = "unknown",
+) -> str:
+    """Return source display string for script list/show outputs."""
+    if script.source_type == SourceType.GIT:
+        if not script.source_url:
+            return missing_git
+        if not shorten_git:
+            return script.source_url
+        source_parts = script.source_url.rstrip("/").split("/")
+        return "/".join(source_parts[-2:]) if len(source_parts) >= 2 else script.source_url
+    return str(script.source_path) if script.source_path else "local"
 
 
 def render_script_status(status_key: str, detail: str | None = None) -> str:
@@ -251,24 +288,11 @@ def display_scripts_table(
     local_changes_by_script: dict[tuple[Path, str], str] = {}
 
     for script in scripts:
-        # Determine the display name (use symlink name if available, otherwise script name)
-        if script.symlink_path:
-            symlink_name = script.symlink_path.name
-            script_display = symlink_name
-            # In verbose mode, show relationship if names differ
-            if verbose and symlink_name != script.name:
-                script_display = f"{symlink_name} -> {script.name}"
-        else:
-            script_display = script.name
-
-        # Display source based on type
-        if script.source_type == SourceType.GIT and script.source_url:
-            source_parts = script.source_url.rstrip("/").split("/")
-            source_display = "/".join(source_parts[-2:]) if len(source_parts) >= 2 else script.source_url
+        script_display = get_script_display_name(script, show_alias_target=verbose)
+        source_display = get_script_source_display(script, shorten_git=True, missing_git="N/A")
+        if script.source_type == SourceType.GIT:
             ref_display = script.ref or "N/A"
         else:
-            # Local source
-            source_display = str(script.source_path) if script.source_path else "local"
             ref_display = "N/A"
 
         status_key = get_script_status_key(script, local_changes_by_script)
@@ -287,11 +311,10 @@ def display_scripts_table(
             commit_display = script.commit_hash if script.commit_hash else "N/A"
             if script.source_type == SourceType.GIT:
                 script_key = (script.repo_path, script.name)
-                if script_key not in local_changes_by_script:
-                    local_changes_by_script[script_key] = local_changes.get_local_change_state(
-                        script.repo_path, script.name
-                    )
-                local_state = local_changes_by_script[script_key]
+                local_state = local_changes_by_script.get(script_key)
+                if local_state is None:
+                    local_state = local_changes.get_local_change_state(script.repo_path, script.name)
+                    local_changes_by_script[script_key] = local_state
                 local_changes_display = _render_local_changes_state(local_state)
             else:
                 local_changes_display = _render_local_changes_state("N/A")
@@ -331,22 +354,22 @@ def display_update_results(
             script_name, status = cast(tuple[str, str], result)
             local_changes = "N/A"
 
-        if status == "updated":
+        if status == UPDATE_STATUS_UPDATED:
             status_text = "[green]✓ Updated[/green]"
-        elif status == "up-to-date":
+        elif status == UPDATE_STATUS_UP_TO_DATE:
             status_text = render_script_status("clean")
-        elif status == "would update":
+        elif status == UPDATE_STATUS_WOULD_UPDATE:
             status_text = "[cyan]• Update available[/cyan]"
         elif status in (
-            "would update (local custom changes present)",
-            "would update (local changes present)",
+            UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES,
+            UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES_LEGACY,
         ):
             status_text = render_script_status("needs-attention")
-        elif status == "skipped (local)":
+        elif status == UPDATE_STATUS_SKIPPED_LOCAL:
             status_text = render_script_status("local")
-        elif status.startswith("pinned to "):
-            status_text = render_script_status("pinned", status.removeprefix("pinned to "))
-        elif status.startswith("Error:"):
+        elif (pinned_ref := parse_pinned_status(status)) is not None:
+            status_text = render_script_status("pinned", pinned_ref)
+        elif is_error_status(status):
             status_text = f"[red]✗ {status}[/red]"
         else:
             status_text = f"[yellow]• {status}[/yellow]"

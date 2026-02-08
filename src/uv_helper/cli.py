@@ -29,6 +29,8 @@ from .display import (
     display_script_details,
     display_scripts_table,
     display_update_results,
+    get_script_display_name,
+    get_script_source_display,
     get_script_status_key,
     render_script_status,
 )
@@ -354,6 +356,34 @@ def _update_results_to_json(results: list[tuple[str, str] | tuple[str, str, str]
     return payload
 
 
+def _build_install_request(
+    *,
+    with_deps: str | None,
+    force: bool,
+    no_symlink: bool,
+    install_dir: Path | None,
+    verbose: bool,
+    exact: bool | None,
+    copy_parent_dir: bool,
+    add_source_package: str | None,
+    alias: str | None,
+    no_deps: bool,
+) -> InstallRequest:
+    """Build a normalized install request shared by install/import paths."""
+    return InstallRequest(
+        with_deps=with_deps,
+        force=force,
+        no_symlink=no_symlink,
+        install_dir=install_dir,
+        verbose=verbose,
+        exact=exact,
+        copy_parent_dir=copy_parent_dir,
+        add_source_package=add_source_package,
+        alias=alias,
+        no_deps=no_deps,
+    )
+
+
 def _print_update_all_impact_summary(state_manager: StateManager, dry_run: bool) -> None:
     """Print compact impact summary for update --all."""
     scripts = state_manager.list_scripts()
@@ -590,7 +620,7 @@ def install(
     handler = InstallHandler(config, console)
 
     try:
-        request = InstallRequest(
+        request = _build_install_request(
             with_deps=None if no_deps else with_deps,
             force=force,
             no_symlink=no_symlink,
@@ -695,8 +725,6 @@ def list_scripts(
     """
     from rich.tree import Tree
 
-    from .constants import SourceType
-
     config = ctx.obj["config"]
     state_manager = StateManager(config.state_file)
 
@@ -724,10 +752,7 @@ def list_scripts(
         groups: dict[str, list] = {}
         local_changes_by_script: dict[tuple[Path, str], str] = {}
         for script in scripts:
-            if script.source_type == SourceType.GIT:
-                key = script.source_url or "unknown"
-            else:
-                key = str(script.source_path) if script.source_path else "local"
+            key = get_script_source_display(script, shorten_git=False)
 
             if key not in groups:
                 groups[key] = []
@@ -736,26 +761,11 @@ def list_scripts(
         # Display tree
         tree_view = Tree("[bold]Installed Scripts by Source[/bold]")
 
-        for source, source_scripts in sorted(groups.items()):
-            # Shorten Git URLs
-            if source.startswith("http"):
-                display_source = "/".join(source.split("/")[-2:])
-            else:
-                display_source = source
-
-            source_node = tree_view.add(f"[magenta]{display_source}[/magenta]")
+        for _, source_scripts in sorted(groups.items()):
+            source_node = tree_view.add(f"[magenta]{get_script_source_display(source_scripts[0])}[/magenta]")
 
             for script in sorted(source_scripts, key=lambda s: s.name):
-                # Determine display name with alias indication
-                if script.symlink_path:
-                    symlink_name = script.symlink_path.name
-                    # Show alias relationship if names differ
-                    if symlink_name != script.name:
-                        name = f"{symlink_name} -> {script.name}"
-                    else:
-                        name = symlink_name
-                else:
-                    name = script.name
+                name = get_script_display_name(script, show_alias_target=True)
 
                 if verbose:
                     # Show detailed info in verbose mode
@@ -1205,7 +1215,7 @@ def import_scripts(ctx: click.Context, file: Path, force: bool, dry_run: bool) -
             source = f"{source}{build_ref_suffix(ref, script_data.get('ref_type'))}"
 
         try:
-            request = InstallRequest(
+            request = _build_install_request(
                 with_deps=",".join(deps) if deps else None,
                 force=force,
                 no_symlink=False,

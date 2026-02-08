@@ -82,7 +82,7 @@ def process_script_dependencies(script_path: Path, dependencies: list[str]) -> b
         raise ScriptInstallerError(f"Failed to add dependencies to script: {e.stderr}") from e
 
 
-def modify_shebang(script_path: Path, use_exact: bool = True) -> bool:
+def modify_shebang(script_path: Path, use_exact: bool = True) -> None:
     """
     Modify script shebang to use uv run --script.
 
@@ -95,9 +95,6 @@ def modify_shebang(script_path: Path, use_exact: bool = True) -> bool:
     Args:
         script_path: Path to Python script
         use_exact: Whether to include --exact flag for precise dependency management
-
-    Returns:
-        True if successful
 
     Raises:
         ScriptInstallerError: If modification fails
@@ -123,8 +120,6 @@ def modify_shebang(script_path: Path, use_exact: bool = True) -> bool:
         # Write back
         with open(script_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
-
-        return True
     except (OSError, UnicodeDecodeError) as e:
         raise ScriptInstallerError(f"Failed to modify shebang: {e}") from e
 
@@ -215,7 +210,6 @@ def add_package_source(script_path: Path, package_name: str, package_path: Path)
         # Write back
         with open(script_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
-
         return True
     except (OSError, UnicodeDecodeError) as e:
         raise ScriptInstallerError(f"Failed to add package source: {e}") from e
@@ -319,15 +313,12 @@ def create_symlink(
         raise ScriptInstallerError(f"Failed to create symlink: {e}") from e
 
 
-def make_executable(script_path: Path) -> bool:
+def make_executable(script_path: Path) -> None:
     """
     Make script executable.
 
     Args:
         script_path: Path to script file
-
-    Returns:
-        True if successful
 
     Raises:
         ScriptInstallerError: If chmod fails
@@ -336,7 +327,6 @@ def make_executable(script_path: Path) -> bool:
         # Add execute permission for owner only (security best practice)
         current_mode = script_path.stat().st_mode
         script_path.chmod(current_mode | 0o100)  # Add execute for user only
-        return True
     except OSError as e:
         raise ScriptInstallerError(f"Failed to make script executable: {e}") from e
 
@@ -375,7 +365,7 @@ def remove_script_installation(
     script_name: str,
     state_manager: StateManager,
     clean_repo: bool = False,
-) -> bool:
+) -> None:
     """
     Remove an installed script.
 
@@ -383,9 +373,6 @@ def remove_script_installation(
         script_name: Name of script to remove
         state_manager: StateManager instance
         clean_repo: Whether to clean up repository if no other scripts use it
-
-    Returns:
-        True if successful
 
     Raises:
         ScriptInstallerError: If removal fails
@@ -410,25 +397,19 @@ def remove_script_installation(
 
         # Remove from state
         state_manager.remove_script(script_name)
-
-        return True
     except OSError as e:
         raise ScriptInstallerError(f"Failed to remove script: {e}") from e
 
 
-def verify_uv_available() -> bool:
+def verify_uv_available() -> None:
     """
     Verify that uv command is available.
-
-    Returns:
-        True if uv is available
 
     Raises:
         ScriptInstallerError: If uv is not available
     """
     try:
         run_command(["uv", "--version"], check=True)
-        return True
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         raise ScriptInstallerError("UV is not installed or not in PATH") from e
 

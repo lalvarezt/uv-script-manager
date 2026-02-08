@@ -43,31 +43,3 @@ JSON_OUTPUT_INDENT = 2
 
 # Git configuration
 GIT_SHORT_HASH_LENGTH = 8
-GIT_RETRY_MAX_ATTEMPTS = 4
-GIT_RETRY_BACKOFF_BASE = 2  # seconds
-
-# Script installer configuration
-SYMLINK_CREATION_MAX_ATTEMPTS = 3  # Maximum attempts for atomic symlink creation
-SYMLINK_CREATION_RETRY_DELAY = 0.1  # Delay between symlink retries (seconds)
-
-# Progress spinner configuration
-PROGRESS_SPINNER_TRANSIENT = True  # Whether spinner disappears after completion
-PROGRESS_SPINNER_REFRESH_RATE = 10  # Spinner refresh rate (Hz)
-
-# File permissions
-SCRIPT_EXECUTABLE_MODE = 0o100  # Owner-only executable permission
-
-# Validation limits
-MAX_SCRIPT_NAME_LENGTH = 255  # Maximum script filename length
-MAX_DEPENDENCY_COUNT = 1000  # Maximum dependencies per script
-
-# State management
-STATE_VALIDATION_ON_STARTUP = True  # Whether to validate state on startup
-
-# Network timeouts
-NETWORK_OPERATION_TIMEOUT = 30.0  # Default timeout for network operations (seconds)
-GIT_CLONE_TIMEOUT = 300.0  # Timeout for git clone (5 minutes)
-
-# Logging configuration
-LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"

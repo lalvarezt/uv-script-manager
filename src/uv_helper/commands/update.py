@@ -20,6 +20,15 @@ from ..git_manager import (
 from ..local_changes import clear_managed_script_changes, get_local_change_state
 from ..script_installer import InstallConfig, ScriptInstallerError, install_script
 from ..state import ScriptInfo, StateManager
+from ..update_status import (
+    UPDATE_STATUS_SKIPPED_LOCAL,
+    UPDATE_STATUS_UP_TO_DATE,
+    UPDATE_STATUS_UPDATED,
+    UPDATE_STATUS_WOULD_UPDATE,
+    UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES,
+    make_error_status,
+    make_pinned_status,
+)
 from ..utils import copy_directory_contents, copy_script_file, handle_git_error, progress_spinner
 
 
@@ -69,18 +78,10 @@ class UpdateHandler:
 
         if dry_run:
             if script_info.source_type == SourceType.LOCAL:
-                return (display_name, "skipped (local)", "N/A")
+                return self._local_skip_dry_run_result(display_name)
 
             handle_git_error(self.console, lambda: verify_git_available())
-            local_change_state = get_local_change_state(script_info.repo_path, script_info.name)
-            status = self._check_git_script_update_status(
-                script_info,
-                force,
-                refresh_deps,
-                local_change_state,
-            )
-            local_changes = format_local_change_label(local_change_state)
-            return (display_name, status, local_changes)
+            return self._build_git_dry_run_result(script_info, force, refresh_deps)
 
         # Branch based on source type (use actual script name from state, not user input)
         if script_info.source_type == SourceType.LOCAL:
@@ -130,9 +131,9 @@ class UpdateHandler:
             # Skip local scripts (they need manual source updates)
             if script_info.source_type == SourceType.LOCAL:
                 if dry_run:
-                    results.append((display_name, "skipped (local)", "N/A"))
+                    results.append(self._local_skip_dry_run_result(display_name))
                 else:
-                    results.append((display_name, "skipped (local)"))
+                    results.append(self._local_skip_result(display_name))
                 continue
 
             # Verify git available once
@@ -142,23 +143,15 @@ class UpdateHandler:
 
             try:
                 if dry_run:
-                    local_change_state = get_local_change_state(script_info.repo_path, script_info.name)
-                    status = self._check_git_script_update_status(
-                        script_info,
-                        force,
-                        refresh_deps,
-                        local_change_state,
-                    )
-                    local_changes = format_local_change_label(local_change_state)
-                    results.append((display_name, status, local_changes))
+                    results.append(self._build_git_dry_run_result(script_info, force, refresh_deps))
                 else:
                     status = self._update_git_script_internal(script_info, force, exact, refresh_deps)
                     results.append((display_name, status))
             except (GitError, ScriptInstallerError) as e:
                 if dry_run:
-                    results.append((display_name, f"Error: {e}", "Unknown"))
+                    results.append((display_name, make_error_status(str(e)), "Unknown"))
                 else:
-                    results.append((display_name, f"Error: {e}"))
+                    results.append((display_name, make_error_status(str(e))))
 
         return results
 
@@ -196,10 +189,10 @@ class UpdateHandler:
 
             self._persist_script_update(script_info, dependencies, symlink_path)
 
-            return (script_info.display_name, "updated")
+            return (script_info.display_name, UPDATE_STATUS_UPDATED)
 
         except Exception as e:
-            return (script_info.display_name, f"Error: {e}")
+            return (script_info.display_name, make_error_status(str(e)))
 
     def _update_git_script(
         self,
@@ -219,7 +212,7 @@ class UpdateHandler:
             status = self._update_git_script_internal(script_info, force, exact, refresh_deps)
             return (display_name, status)
         except (GitError, ScriptInstallerError) as e:
-            return (display_name, f"Error: {e}")
+            return (display_name, make_error_status(str(e)))
 
     def _update_git_script_internal(
         self, script_info: ScriptInfo, force: bool, exact: bool | None, refresh_deps: bool = False
@@ -233,12 +226,12 @@ class UpdateHandler:
 
         if is_pinned and not force and not refresh_deps:
             # Pinned refs don't get updates - they're intentionally fixed
-            return f"pinned to {script_info.ref}"
+            return make_pinned_status(script_info.ref)
 
         if not is_pinned and not force and not refresh_deps:
             remote_commit_hash = get_remote_commit_hash(script_info.source_url, script_info.ref)
             if remote_commit_hash == script_info.commit_hash:
-                return "up-to-date"
+                return UPDATE_STATUS_UP_TO_DATE
 
         local_change_state = get_local_change_state(script_info.repo_path, script_info.name)
         if local_change_state == "blocking":
@@ -272,7 +265,7 @@ class UpdateHandler:
             actual_branch = script_info.ref
 
         if new_commit_hash == script_info.commit_hash and not force and not refresh_deps:
-            return "up-to-date"
+            return UPDATE_STATUS_UP_TO_DATE
 
         # Resolve dependencies
         dependencies = self._resolve_dependencies_for_update(
@@ -291,7 +284,7 @@ class UpdateHandler:
         script_info.ref = actual_branch
         self._persist_script_update(script_info, dependencies, symlink_path)
 
-        return "updated"
+        return UPDATE_STATUS_UPDATED
 
     def _get_script_alias(self, script_info: ScriptInfo, script_name: str) -> str | None:
         """Extract preserved alias when it differs from the original script name."""
@@ -364,22 +357,22 @@ class UpdateHandler:
         is_pinned = script_info.ref_type in ("tag", "commit")
 
         if is_pinned and not force and not refresh_deps:
-            return f"pinned to {script_info.ref}"
+            return make_pinned_status(script_info.ref)
 
         if force or refresh_deps:
-            status = "would update"
+            status = UPDATE_STATUS_WOULD_UPDATE
         else:
             remote_commit_hash = get_remote_commit_hash(script_info.source_url, script_info.ref)
             if remote_commit_hash == script_info.commit_hash:
-                status = "up-to-date"
+                status = UPDATE_STATUS_UP_TO_DATE
             else:
-                status = "would update"
+                status = UPDATE_STATUS_WOULD_UPDATE
 
-        if status == "would update":
+        if status == UPDATE_STATUS_WOULD_UPDATE:
             if local_change_state is None:
                 local_change_state = get_local_change_state(script_info.repo_path, script_info.name)
             if local_change_state == "blocking":
-                return "would update (local custom changes present)"
+                return UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES
 
         return status
 
@@ -387,3 +380,30 @@ class UpdateHandler:
     def _format_local_changes_label(local_change_state: str) -> str:
         """Backward-compatible local-change labels for external callers."""
         return format_local_change_label(local_change_state)
+
+    @staticmethod
+    def _local_skip_result(display_name: str) -> tuple[str, str]:
+        """Build update result tuple for local-only scripts."""
+        return (display_name, UPDATE_STATUS_SKIPPED_LOCAL)
+
+    @staticmethod
+    def _local_skip_dry_run_result(display_name: str) -> tuple[str, str, str]:
+        """Build dry-run update result tuple for local-only scripts."""
+        return (display_name, UPDATE_STATUS_SKIPPED_LOCAL, "N/A")
+
+    def _build_git_dry_run_result(
+        self,
+        script_info: ScriptInfo,
+        force: bool,
+        refresh_deps: bool,
+    ) -> tuple[str, str, str]:
+        """Build dry-run update result tuple for a Git-backed script."""
+        local_change_state = get_local_change_state(script_info.repo_path, script_info.name)
+        status = self._check_git_script_update_status(
+            script_info,
+            force,
+            refresh_deps,
+            local_change_state,
+        )
+        local_changes = format_local_change_label(local_change_state)
+        return (script_info.display_name, status, local_changes)
