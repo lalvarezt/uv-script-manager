@@ -333,8 +333,8 @@ uv-helper browse <git-url> [OPTIONS]
 
 - `--all`: Show all Python files including typically excluded ones (tests, `__init__.py`, etc.)
 
-For GitHub repositories, uses the GitHub API for fast listing without cloning. For other repositories, clones to a
-cached directory.
+For GitHub repositories, tries the GitHub API first for fast listing without cloning. If the API is unavailable or
+fails, it falls back to cloning into a cached directory. For other repositories, it clones to a cached directory.
 
 **Examples:**
 

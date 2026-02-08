@@ -108,7 +108,8 @@ class UpdateHandler:
             show_summary: Whether to print summary heading text
 
         Returns:
-            List of (script_name, status) tuples
+            List of (script_name, status) tuples, or
+            (script_name, status, local_changes) tuples in dry-run mode
         """
         scripts = self.state_manager.list_scripts()
 

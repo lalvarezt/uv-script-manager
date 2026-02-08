@@ -1,4 +1,4 @@
-"""UV-Helper: Install and manage Python scripts from Git repositories."""
+"""UV-Helper: Install and manage Python scripts from Git repositories or local directories."""
 
 __version__ = "1.4.0"
 __author__ = "Luis M Alvarez"

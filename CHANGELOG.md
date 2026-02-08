@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `install --script` now rejects unsafe path values (absolute paths, drive-style roots, and `..` traversal)
 - `install` now exits with a failure code when all requested script installs fail
+- Dependency parsing now suppresses known `requirements-parser` warning noise for ignored constraints and unsupported private-repo directives
 - `list` now prints a compact follow-up hint when scripts need attention, and `show` now includes actionable reason/inspect guidance
 - Script-name shell completion now honors `--config` from parent command context and from `COMP_WORDS` parsing
 

@@ -59,6 +59,7 @@ def complete_script_names(
     """Provide completion for installed script names."""
 
     def _get_completion_config_path() -> Path | None:
+        """Resolve config path for completion from context or COMP_WORDS."""
         current_ctx: click.Context | None = ctx
         while current_ctx is not None:
             config_value = current_ctx.params.get("config") if current_ctx.params else None
@@ -152,6 +153,7 @@ def _discover_install_script_candidates(source: str, clone_depth: int) -> list[s
     from .utils import expand_path, is_git_url, is_local_directory
 
     def _collect_from_root(root: Path) -> list[str]:
+        """Collect installable Python script paths from a source root."""
         candidates: list[str] = []
         for py_file in root.rglob("*.py"):
             rel_path = py_file.relative_to(root)
@@ -446,7 +448,7 @@ def _print_needs_attention_hint(scripts) -> None:
 )
 @click.pass_context
 def cli(ctx: click.Context, config: Path | None) -> None:
-    """UV-Helper: Install and manage Python scripts from Git repositories."""
+    """UV-Helper: Install and manage Python scripts from Git repositories or local directories."""
     ctx.ensure_object(dict)
 
     # Load configuration
@@ -694,8 +696,9 @@ def list_scripts(
     """
     List all installed scripts with their details.
 
-    Displays information about installed scripts including name, source URL,
-    installation date, current commit hash, and symlink location.
+    Displays information about installed scripts including name, status,
+    source, ref, and installation date. Use --verbose for commit hash,
+    local change state, and dependencies.
 
     Examples:
 
@@ -932,11 +935,11 @@ def update(
     json_output: bool,
 ) -> None:
     """
-    Update installed script(s) to the latest version from their repository.
+    Update installed script(s) from their configured source.
 
-    Fetches the latest changes from the script's Git repository and checks
-    if the commit hash has changed. If an update is available (or --force
-    is specified), reinstalls the script with the new version.
+    For Git-backed scripts, fetches the latest changes and reinstalls when
+    needed (or when --force is specified). For local scripts, re-copies from
+    the original source path and reinstalls.
 
     Examples:
 
@@ -1245,8 +1248,11 @@ def browse(ctx: click.Context, git_url: str, show_all: bool) -> None:
     """
     Browse available Python scripts in a Git repository.
 
-    For GitHub repositories, uses the GitHub API for fast listing without
-    cloning. For other repositories, clones to local cache and lists files.
+    For GitHub repositories, tries the GitHub API first for fast listing
+    without cloning. If the API is unavailable or fails, falls back to
+    cloning and listing files from a local cache.
+
+    For non-GitHub repositories, clones to local cache and lists files.
 
     By default, excludes common non-script files like __init__.py, setup.py,
     conftest.py, etc.
@@ -1320,7 +1326,11 @@ def browse(ctx: click.Context, git_url: str, show_all: bool) -> None:
             console.print(f"\n[dim]Install with: uv-helper install {git_url} -s {example_script}[/dim]")
 
     def try_github_api(owner: str, repo: str, ref: str | None) -> list[str] | None:
-        """Try to list .py files using GitHub API. Returns None if not available."""
+        """Try to list .py files using GitHub API.
+
+        Returns file paths on success. Returns None when `gh` is not installed
+        or the API request fails, so the caller can fall back to clone.
+        """
         # Check if gh is available
         if shutil.which("gh") is None:
             return None

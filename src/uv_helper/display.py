@@ -224,6 +224,7 @@ def display_scripts_table(
         scripts: List of ScriptInfo instances
         verbose: Whether to show detailed information
         console: Rich console instance for output
+        full: Whether to disable column truncation
     """
     widths = _get_list_column_max_widths(console, verbose, full)
     overflow = "fold" if full else "ellipsis"
@@ -336,7 +337,8 @@ def display_update_results(
     Display update results in a table.
 
     Args:
-        results: List of tuples (script_name, status_message)
+        results: List of tuples (script_name, status) or
+            (script_name, status, local_changes)
         console: Rich console instance for output
     """
     table = Table(title="Update Results")
