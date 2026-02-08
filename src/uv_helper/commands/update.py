@@ -8,6 +8,7 @@ from rich.console import Console
 from ..config import Config
 from ..constants import SourceType
 from ..deps import resolve_dependencies
+from ..display import format_local_change_label
 from ..git_manager import (
     GitError,
     clone_or_update,
@@ -19,7 +20,7 @@ from ..git_manager import (
 from ..local_changes import clear_managed_script_changes, get_local_change_state
 from ..script_installer import InstallConfig, ScriptInstallerError, install_script
 from ..state import ScriptInfo, StateManager
-from ..utils import copy_directory_contents, handle_git_error, progress_spinner
+from ..utils import copy_directory_contents, copy_script_file, handle_git_error, progress_spinner
 
 
 class UpdateHandler:
@@ -78,7 +79,7 @@ class UpdateHandler:
                 refresh_deps,
                 local_change_state,
             )
-            local_changes = self._format_local_changes_label(local_change_state)
+            local_changes = format_local_change_label(local_change_state)
             return (display_name, status, local_changes)
 
         # Branch based on source type (use actual script name from state, not user input)
@@ -148,7 +149,7 @@ class UpdateHandler:
                         refresh_deps,
                         local_change_state,
                     )
-                    local_changes = self._format_local_changes_label(local_change_state)
+                    local_changes = format_local_change_label(local_change_state)
                     results.append((display_name, status, local_changes))
                 else:
                     status = self._update_git_script_internal(script_info, force, exact, refresh_deps)
@@ -178,12 +179,7 @@ class UpdateHandler:
                     copy_directory_contents(script_info.source_path, script_info.repo_path)
                 else:
                     # Copy just the script file
-                    import shutil
-
-                    source_script = script_info.source_path / script_info.name
-                    dest_script = script_info.repo_path / script_info.name
-                    dest_script.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(source_script, dest_script)
+                    copy_script_file(script_info.source_path, script_info.name, script_info.repo_path)
 
             # Resolve dependencies
             dependencies = self._resolve_dependencies_for_update(
@@ -389,11 +385,5 @@ class UpdateHandler:
 
     @staticmethod
     def _format_local_changes_label(local_change_state: str) -> str:
-        """Format local change state for update table display."""
-        if local_change_state == "blocking":
-            return "Needs attention"
-        if local_change_state == "managed":
-            return "No (managed)"
-        if local_change_state == "clean":
-            return "No"
-        return "Unknown"
+        """Backward-compatible local-change labels for external callers."""
+        return format_local_change_label(local_change_state)

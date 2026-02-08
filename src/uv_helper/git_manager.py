@@ -1,6 +1,5 @@
 """Git operations for UV-Helper."""
 
-import re
 import subprocess
 from pathlib import Path
 from typing import Literal
@@ -9,6 +8,7 @@ from giturlparse import parse as parse_git_url_base
 from pydantic import BaseModel
 
 from .constants import GIT_SHORT_HASH_LENGTH
+from .refs import split_source_ref
 from .utils import run_command
 
 
@@ -62,26 +62,8 @@ def parse_git_url(url: str) -> GitRef:
     Returns:
         GitRef instance with parsed information
     """
-    # Extract ref markers before parsing
-    ref_type, ref_value = "default", None
-    base_url = url
-
-    # Parse # suffix for branch specification
-    if "#" in url:
-        base_url, ref_value = url.rsplit("#", 1)
-        ref_type = "branch"
-    else:
-        # Parse @ suffix for tag/commit when @ is in the path suffix.
-        # This avoids misinterpreting SSH user info, e.g. ssh://git@github.com/...
-        at_index = url.rfind("@")
-        if at_index != -1 and at_index > max(url.rfind("/"), url.rfind(":")):
-            base_url = url[:at_index]
-            ref_value = url[at_index + 1 :]
-            # Detect commit hashes (7-40 hex characters)
-            if re.fullmatch(r"[0-9a-fA-F]{7,40}", ref_value):
-                ref_type = "commit"
-            else:
-                ref_type = "tag"
+    # Extract ref markers before parsing.
+    base_url, ref_type, ref_value = split_source_ref(url)
 
     parsed = parse_git_url_base(base_url)
     # Convert to HTTPS format and remove .git suffix for consistency

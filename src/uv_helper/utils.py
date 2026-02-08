@@ -6,8 +6,9 @@ import shutil
 import subprocess
 from collections.abc import Callable
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, TypeVar, cast
+from typing import Iterator, TypeVar
 
 from giturlparse import parse as parse_git_url_base
 from giturlparse import validate as validate_git_url
@@ -15,6 +16,8 @@ from pathvalidate import sanitize_filename
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm
+
+from .refs import split_source_ref
 
 logger = logging.getLogger(__name__)
 
@@ -49,16 +52,7 @@ def is_git_url(url: str) -> bool:
         True if valid Git URL, False otherwise
     """
     # Remove optional UV-Helper ref suffixes before validation.
-    # We only treat '@' as a ref delimiter when it appears in the path suffix,
-    # not when it is part of SSH user info (e.g., ssh://git@github.com/...).
-    base_url = url
-    if "#" in url:
-        base_url = url.rsplit("#", 1)[0]
-    else:
-        at_index = url.rfind("@")
-        if at_index != -1 and at_index > max(url.rfind("/"), url.rfind(":")):
-            base_url = url[:at_index]
-
+    base_url, _, _ = split_source_ref(url)
     return validate_git_url(base_url)
 
 
@@ -174,13 +168,7 @@ def get_repo_name_from_url(url: str) -> str:
     Returns:
         Repository name (format: owner-repo)
     """
-    # Remove ref markers before parsing
-    base_url = url
-    if "@" in url and not url.startswith("git@"):
-        base_url = url.rsplit("@", 1)[0]
-    elif "#" in url:
-        base_url = url.rsplit("#", 1)[0]
-
+    base_url, _, _ = split_source_ref(url)
     parsed = parse_git_url_base(base_url)
     return f"{parsed.owner}-{parsed.name}"
 
@@ -298,19 +286,41 @@ def copy_directory_contents(source: Path, dest: Path) -> None:
             shutil.copy2(item, dest_item)
 
 
+def copy_script_file(source_root: Path, script_rel_path: str, dest_root: Path) -> Path:
+    """
+    Copy one script file from source tree to destination tree.
+
+    Args:
+        source_root: Root source directory
+        script_rel_path: Relative script path inside source_root
+        dest_root: Root destination directory
+
+    Returns:
+        Path to the copied script under dest_root
+
+    Raises:
+        FileNotFoundError: If source script does not exist
+        IsADirectoryError: If source path is not a file
+        OSError: If copy operation fails
+    """
+    source_script = source_root / script_rel_path
+    if not source_script.exists():
+        raise FileNotFoundError(f"Script not found: {source_script}")
+    if not source_script.is_file():
+        raise IsADirectoryError(f"Script path is not a file: {source_script}")
+
+    dest_script = dest_root / script_rel_path
+    ensure_dir(dest_script.parent)
+    shutil.copy2(source_script, dest_script)
+    return dest_script
+
+
+@dataclass(slots=True)
 class ErrorContext:
-    """Context for error handling with actionable guidance."""
+    """Context for operation error handling and hints."""
 
-    def __init__(self, error_prefix: str, suggestions: dict[type[Exception], str] | None = None):
-        """
-        Initialize error context.
-
-        Args:
-            error_prefix: Prefix for error messages
-            suggestions: Mapping of exception types to actionable suggestions
-        """
-        self.error_prefix = error_prefix
-        self.suggestions = suggestions or {}
+    error_prefix: str
+    suggestions: dict[type[Exception], str] | None = None
 
 
 def handle_operation(
@@ -320,50 +330,24 @@ def handle_operation(
     error_types: tuple[type[Exception], ...] | None = None,
     reraise: bool = True,
 ) -> T | None:
-    """
-    Execute an operation with comprehensive error handling and actionable guidance.
-
-    This generalizes error handling across all operations (git, file, network, etc.)
-    and provides users with helpful suggestions for common failures.
-
-    Args:
-        console: Rich console for output
-        operation: Callable that performs the operation
-        context: Error context with prefix and suggestions
-        error_types: Tuple of exception types to catch (None = catch all)
-        reraise: Whether to re-raise the exception after logging
-
-    Returns:
-        Result from the operation callable, or None if error and not reraising
-
-    Raises:
-        Exception: Re-raises caught exceptions if reraise=True
-
-    Examples:
-        context = ErrorContext(
-            "Git clone",
-            suggestions={
-                GitError: "Check network connection and repository URL"
-            }
-        )
-        handle_operation(console, lambda: clone_repo(url), context)
-    """
+    """Execute an operation with consistent, user-facing error output."""
     try:
         return operation()
     except Exception as e:
-        # Check if we should handle this exception type
         if error_types and not isinstance(e, error_types):
             raise
 
-        # Display error message
         console.print(f"[red]Error:[/red] {context.error_prefix}: {e}")
 
-        # Show actionable suggestion if available
-        suggestion = context.suggestions.get(type(e))
+        suggestion = None
+        if context.suggestions:
+            for error_type, message in context.suggestions.items():
+                if isinstance(e, error_type):
+                    suggestion = message
+                    break
+
         if suggestion:
             console.print(f"[cyan]Suggestion:[/cyan] {suggestion}")
-
-        # Show generic help
         elif isinstance(e, (PermissionError, OSError)):
             console.print("[cyan]Suggestion:[/cyan] Check file permissions and disk space")
         elif isinstance(e, (ConnectionError, TimeoutError)):
@@ -377,9 +361,6 @@ def handle_operation(
 def handle_git_error(console: Console, operation: Callable[[], T], error_prefix: str = "Git") -> T:
     """
     Execute a git operation with consistent error handling.
-
-    This is a backward-compatible wrapper around handle_operation().
-    New code should use handle_operation() directly.
 
     Args:
         console: Rich console for error output
@@ -396,13 +377,10 @@ def handle_git_error(console: Console, operation: Callable[[], T], error_prefix:
 
     context = ErrorContext(
         error_prefix,
-        suggestions={
-            GitError: "Verify git is installed and repository URL is correct",
-            PermissionError: "Check repository directory permissions",
-            FileNotFoundError: "Ensure git is in your PATH: which git",
-        },
+        suggestions={GitError: "Verify git is installed and repository URL is correct"},
     )
 
-    # handle_operation returns T | None, but with reraise=True (default) it always returns T or raises
     result = handle_operation(console, operation, context, error_types=(GitError,))
-    return cast(T, result)
+    if result is None:
+        raise RuntimeError("Unexpected missing result from git operation")
+    return result

@@ -1,6 +1,5 @@
 """Install command handler for UV-Helper."""
 
-import shutil
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -28,6 +27,7 @@ from ..script_installer import (
 from ..state import ScriptInfo, StateManager
 from ..utils import (
     copy_directory_contents,
+    copy_script_file,
     ensure_dir,
     expand_path,
     get_repo_name_from_url,
@@ -413,15 +413,11 @@ class InstallHandler:
         if context.is_local and not context.copy_parent_dir:
             assert context.source_path is not None
             source_script = context.source_path / script_name
-            if not source_script.exists():
+            try:
+                script_path = copy_script_file(context.source_path, script_name, context.repo_path)
+            except (FileNotFoundError, IsADirectoryError):
                 self.console.print(f"[red]Error:[/red] Script '{script_name}' not found at: {source_script}")
                 return (script_name, False, "Not found")
-
-            # Copy to repo_path
-            dest_script = context.repo_path / script_name
-            dest_script.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source_script, dest_script)
-            script_path = dest_script
         else:
             script_path = context.repo_path / script_name
 

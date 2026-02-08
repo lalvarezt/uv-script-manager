@@ -42,6 +42,13 @@ class ScriptInfo(BaseModel):
         """Get display name (symlink name if exists, otherwise script name)."""
         return self.symlink_path.name if self.symlink_path else self.name
 
+    @property
+    def source_display(self) -> str:
+        """Get source display value for user-facing output."""
+        if self.source_type == SourceType.GIT:
+            return self.source_url or "N/A"
+        return str(self.source_path) if self.source_path else "local"
+
 
 class StateManager:
     """Manages state using TinyDB for automatic atomic updates and query support."""
@@ -146,7 +153,7 @@ class StateManager:
         # Use TinyDB query with custom test for better performance
         Script = Query()
         results = self.scripts.search(
-            Script.symlink_path.test(lambda path: path is not None and Path(path).name == symlink_name)
+            Script.symlink_path.test(lambda path: isinstance(path, str) and Path(path).name == symlink_name)
         )
         return ScriptInfo.model_validate(results[0]) if results else None
 

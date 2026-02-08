@@ -3,7 +3,6 @@
 from rich.console import Console
 
 from ..config import Config
-from ..constants import SourceType
 from ..script_installer import ScriptInstallerError, remove_script_installation
 from ..state import StateManager
 from ..utils import prompt_confirm
@@ -48,13 +47,7 @@ class RemoveHandler:
         # Confirm removal
         if not force:
             self.console.print(f"Removing script: [cyan]{display_name}[/cyan]")
-
-            if script_info.source_type == SourceType.GIT:
-                source_display = script_info.source_url or "N/A"
-            else:
-                source_display = str(script_info.source_path) if script_info.source_path else "local"
-
-            self.console.print(f"  Source: {source_display}")
+            self.console.print(f"  Source: {script_info.source_display}")
             self.console.print(f"  Symlink: {script_info.symlink_path}")
 
             if clean_repo:

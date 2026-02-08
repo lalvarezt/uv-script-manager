@@ -2,7 +2,6 @@
 
 import json
 import os
-import re
 import shlex
 import sys
 from pathlib import Path
@@ -33,6 +32,7 @@ from .display import (
     get_script_status_key,
     render_script_status,
 )
+from .refs import build_ref_suffix
 from .script_installer import ScriptInstallerError, verify_uv_available
 from .state import StateManager
 
@@ -49,7 +49,6 @@ SCRIPT_CANDIDATE_EXCLUDED_FILES = {
 SCRIPT_CANDIDATE_EXCLUDED_PREFIXES = ("test_", "_")
 SCRIPT_CANDIDATE_EXCLUDED_SUFFIXES = ("_test.py",)
 SCRIPT_CANDIDATE_EXCLUDED_DIRS = {"__pycache__", "venv", ".venv", "node_modules"}
-COMMIT_HASH_PATTERN = r"[0-9a-fA-F]{7,40}"
 
 
 def complete_script_names(
@@ -356,21 +355,6 @@ def _update_results_to_json(results: list[tuple[str, str] | tuple[str, str, str]
             }
         )
     return payload
-
-
-def _build_ref_suffix(ref: str, ref_type: str | None) -> str:
-    """Build a URL ref suffix preserving export/import compatibility heuristics."""
-    if ref_type == "branch":
-        return f"#{ref}"
-    if ref_type in ("tag", "commit"):
-        return f"@{ref}"
-
-    # Fallback heuristic for older exports without ref_type
-    if re.fullmatch(COMMIT_HASH_PATTERN, ref):
-        return f"@{ref}"
-    if ref.startswith("v") or ref[0].isdigit():
-        return f"@{ref}"
-    return f"#{ref}"
 
 
 def _print_update_all_impact_summary(state_manager: StateManager, dry_run: bool) -> None:
@@ -891,10 +875,7 @@ def remove(
 
         console.print("[bold]Dry run:[/bold] remove")
         console.print(f"  Script: {script_info.display_name}")
-        if script_info.source_type.value == "git":
-            console.print(f"  Source: {script_info.source_url or 'N/A'}")
-        else:
-            console.print(f"  Source: {script_info.source_path or 'local'}")
+        console.print(f"  Source: {script_info.source_display}")
         console.print(f"  Symlink: {script_info.symlink_path or 'None'}")
 
         if clean_repo:
@@ -1197,7 +1178,7 @@ def import_scripts(ctx: click.Context, file: Path, force: bool, dry_run: bool) -
             alias = script_data.get("alias")
 
             if ref:
-                ref_str = _build_ref_suffix(ref, stored_ref_type)
+                ref_str = build_ref_suffix(ref, stored_ref_type)
             else:
                 ref_str = ""
             alias_str = f" (as {alias})" if alias else ""
@@ -1224,7 +1205,7 @@ def import_scripts(ctx: click.Context, file: Path, force: bool, dry_run: bool) -
 
         # Build source URL with ref for Git sources
         if source_type == SourceType.GIT.value and ref:
-            source = f"{source}{_build_ref_suffix(ref, script_data.get('ref_type'))}"
+            source = f"{source}{build_ref_suffix(ref, script_data.get('ref_type'))}"
 
         try:
             request = InstallRequest(

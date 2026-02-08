@@ -34,13 +34,25 @@ def _normalize_status_key(status_key: str) -> str:
 def _local_change_state_to_status_key(local_state: str) -> str:
     """Map local-change state values to canonical script-status keys."""
     normalized = local_state.strip().lower()
-    if normalized in ("blocking", "needs attention", "yes"):
+    if normalized in ("blocking", "needs attention", "needs-attention", "yes"):
         return "needs-attention"
     if normalized in ("managed", "no (managed)"):
         return "managed"
     if normalized in ("clean", "no"):
         return "clean"
     return "unknown"
+
+
+def format_local_change_label(local_state: str) -> str:
+    """Format local-change state into legacy update-table labels."""
+    status_key = _local_change_state_to_status_key(local_state)
+    if status_key == "needs-attention":
+        return "Needs attention"
+    if status_key == "managed":
+        return "No (managed)"
+    if status_key == "clean":
+        return "No"
+    return "Unknown"
 
 
 def get_script_status_key(script: ScriptInfo, local_changes_cache: dict[tuple[Path, str], str]) -> str:
