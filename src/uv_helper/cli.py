@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shlex
 import sys
 from pathlib import Path
@@ -23,6 +24,7 @@ from rich.console import Console
 from . import __version__
 from .commands import InstallHandler, InstallRequest, RemoveHandler, UpdateHandler
 from .config import create_default_config, get_config_path, load_config
+from .constants import JSON_OUTPUT_INDENT
 from .display import (
     display_install_results,
     display_script_details,
@@ -35,6 +37,19 @@ from .script_installer import ScriptInstallerError, verify_uv_available
 from .state import StateManager
 
 console = Console()
+
+SCRIPT_CANDIDATE_EXCLUDED_FILES = {
+    "__init__.py",
+    "__main__.py",
+    "setup.py",
+    "conftest.py",
+    "noxfile.py",
+    "fabfile.py",
+}
+SCRIPT_CANDIDATE_EXCLUDED_PREFIXES = ("test_", "_")
+SCRIPT_CANDIDATE_EXCLUDED_SUFFIXES = ("_test.py",)
+SCRIPT_CANDIDATE_EXCLUDED_DIRS = {"__pycache__", "venv", ".venv", "node_modules"}
+COMMIT_HASH_PATTERN = r"[0-9a-fA-F]{7,40}"
 
 
 def complete_script_names(
@@ -107,30 +122,25 @@ def complete_script_names(
         return []
 
 
-def _is_install_candidate(path: Path) -> bool:
+def _is_install_candidate(path: Path, show_all: bool = False) -> bool:
     """Check whether a Python file is a likely installable script."""
-    excluded_files = {
-        "__init__.py",
-        "__main__.py",
-        "setup.py",
-        "conftest.py",
-        "noxfile.py",
-        "fabfile.py",
-    }
-    excluded_prefixes = ("test_", "_")
-    excluded_suffixes = ("_test.py",)
-    excluded_dirs = {"__pycache__", "venv", ".venv", "node_modules"}
+    if path.suffix != ".py":
+        return False
 
     parts = path.parts
     if any(part.startswith(".") for part in parts):
         return False
-    if any(part in excluded_dirs for part in parts):
+    if any(part in SCRIPT_CANDIDATE_EXCLUDED_DIRS for part in parts):
         return False
-    if path.name in excluded_files:
+
+    if show_all:
+        return True
+
+    if path.name in SCRIPT_CANDIDATE_EXCLUDED_FILES:
         return False
-    if path.name.startswith(excluded_prefixes):
+    if path.name.startswith(SCRIPT_CANDIDATE_EXCLUDED_PREFIXES):
         return False
-    return not path.name.endswith(excluded_suffixes)
+    return not path.name.endswith(SCRIPT_CANDIDATE_EXCLUDED_SUFFIXES)
 
 
 def _discover_install_script_candidates(source: str, clone_depth: int) -> list[str]:
@@ -346,6 +356,21 @@ def _update_results_to_json(results: list[tuple[str, str] | tuple[str, str, str]
             }
         )
     return payload
+
+
+def _build_ref_suffix(ref: str, ref_type: str | None) -> str:
+    """Build a URL ref suffix preserving export/import compatibility heuristics."""
+    if ref_type == "branch":
+        return f"#{ref}"
+    if ref_type in ("tag", "commit"):
+        return f"@{ref}"
+
+    # Fallback heuristic for older exports without ref_type
+    if re.fullmatch(COMMIT_HASH_PATTERN, ref):
+        return f"@{ref}"
+    if ref.startswith("v") or ref[0].isdigit():
+        return f"@{ref}"
+    return f"#{ref}"
 
 
 def _print_update_all_impact_summary(state_manager: StateManager, dry_run: bool) -> None:
@@ -710,7 +735,7 @@ def list_scripts(
             sys.exit(1)
         local_changes_cache: dict[tuple[Path, str], str] = {}
         payload = [_script_to_json(script, local_changes_cache) for script in scripts]
-        click.echo(json.dumps({"scripts": payload}, indent=2))
+        click.echo(json.dumps({"scripts": payload}, indent=JSON_OUTPUT_INDENT))
         return
 
     if tree:
@@ -807,7 +832,7 @@ def show(ctx: click.Context, script_name: str, json_output: bool) -> None:
         return  # Help type checker understand this is unreachable
 
     if json_output:
-        click.echo(json.dumps({"script": _script_to_json(script_info)}, indent=2))
+        click.echo(json.dumps({"script": _script_to_json(script_info)}, indent=JSON_OUTPUT_INDENT))
         return
 
     display_script_details(script_info, console)
@@ -983,7 +1008,7 @@ def update(
                     "all": all_scripts,
                     "dry_run": dry_run,
                 }
-                click.echo(json.dumps(payload, indent=2))
+                click.echo(json.dumps(payload, indent=JSON_OUTPUT_INDENT))
                 return
             else:
                 display_update_results(results, console)
@@ -1105,7 +1130,7 @@ def export_scripts(ctx: click.Context, output: Path | None) -> None:
 
         scripts_list.append(script_data)
 
-    json_output = json.dumps(export_data, indent=2)
+    json_output = json.dumps(export_data, indent=JSON_OUTPUT_INDENT)
 
     if output:
         output.write_text(json_output)
@@ -1142,7 +1167,6 @@ def import_scripts(ctx: click.Context, file: Path, force: bool, dry_run: bool) -
         uv-helper import scripts.json --force
     """
     import json
-    import re
 
     from .constants import SourceType
 
@@ -1173,18 +1197,7 @@ def import_scripts(ctx: click.Context, file: Path, force: bool, dry_run: bool) -
             alias = script_data.get("alias")
 
             if ref:
-                if stored_ref_type == "branch":
-                    ref_str = f"#{ref}"
-                elif stored_ref_type in ("tag", "commit"):
-                    ref_str = f"@{ref}"
-                else:
-                    # Fallback heuristic for older exports without ref_type
-                    if re.fullmatch(r"[0-9a-fA-F]{7,40}", ref):
-                        ref_str = f"@{ref}"
-                    elif ref.startswith("v") or ref[0].isdigit():
-                        ref_str = f"@{ref}"
-                    else:
-                        ref_str = f"#{ref}"
+                ref_str = _build_ref_suffix(ref, stored_ref_type)
             else:
                 ref_str = ""
             alias_str = f" (as {alias})" if alias else ""
@@ -1211,19 +1224,7 @@ def import_scripts(ctx: click.Context, file: Path, force: bool, dry_run: bool) -
 
         # Build source URL with ref for Git sources
         if source_type == SourceType.GIT.value and ref:
-            stored_ref_type = script_data.get("ref_type")
-            if stored_ref_type == "branch":
-                source = f"{source}#{ref}"
-            elif stored_ref_type in ("tag", "commit"):
-                source = f"{source}@{ref}"
-            else:
-                # Fallback heuristic for older exports without ref_type
-                if re.fullmatch(r"[0-9a-fA-F]{7,40}", ref):
-                    source = f"{source}@{ref}"
-                elif ref.startswith("v") or ref[0].isdigit():
-                    source = f"{source}@{ref}"
-                else:
-                    source = f"{source}#{ref}"
+            source = f"{source}{_build_ref_suffix(ref, script_data.get('ref_type'))}"
 
         try:
             request = InstallRequest(
@@ -1284,45 +1285,13 @@ def browse(ctx: click.Context, git_url: str, show_all: bool) -> None:
     from .git_manager import GitError, clone_or_update, parse_git_url
     from .utils import get_repo_name_from_url
 
-    # Files to exclude by default (common non-script files)
-    EXCLUDED_FILES = {
-        "__init__.py",
-        "__main__.py",
-        "setup.py",
-        "conftest.py",
-        "noxfile.py",
-        "fabfile.py",
-    }
-    EXCLUDED_PREFIXES = ("test_", "_")
-    EXCLUDED_SUFFIXES = ("_test.py",)
-    EXCLUDED_DIRS = {"__pycache__", "venv", ".venv", "node_modules"}
-
     def filter_py_files(file_paths: list[str]) -> list[Path]:
         """Filter and convert file paths to Path objects."""
         py_files: list[Path] = []
         for file_path in file_paths:
-            if not file_path.endswith(".py"):
-                continue
-
             path = Path(file_path)
-            parts = path.parts
-
-            # Skip hidden directories
-            if any(part.startswith(".") for part in parts):
-                continue
-            # Skip excluded directories
-            if any(part in EXCLUDED_DIRS for part in parts):
-                continue
-
-            if not show_all:
-                if path.name in EXCLUDED_FILES:
-                    continue
-                if path.name.startswith(EXCLUDED_PREFIXES):
-                    continue
-                if path.name.endswith(EXCLUDED_SUFFIXES):
-                    continue
-
-            py_files.append(path)
+            if _is_install_candidate(path, show_all=show_all):
+                py_files.append(path)
         return py_files
 
     def display_results(py_files: list[Path], repo_name: str) -> None:
