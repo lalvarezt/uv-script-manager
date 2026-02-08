@@ -6,7 +6,6 @@ import shutil
 import subprocess
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, TypeVar
 
@@ -313,49 +312,6 @@ def copy_script_file(source_root: Path, script_rel_path: str, dest_root: Path) -
     ensure_dir(dest_script.parent)
     shutil.copy2(source_script, dest_script)
     return dest_script
-
-
-@dataclass(slots=True)
-class ErrorContext:
-    """Context for operation error handling and hints."""
-
-    error_prefix: str
-    suggestions: dict[type[Exception], str] | None = None
-
-
-def handle_operation(
-    console: Console,
-    operation: Callable[[], T],
-    context: ErrorContext,
-    error_types: tuple[type[Exception], ...] | None = None,
-    reraise: bool = True,
-) -> T | None:
-    """Execute an operation with consistent, user-facing error output."""
-    try:
-        return operation()
-    except Exception as e:
-        if error_types and not isinstance(e, error_types):
-            raise
-
-        console.print(f"[red]Error:[/red] {context.error_prefix}: {e}")
-
-        suggestion = None
-        if context.suggestions:
-            for error_type, message in context.suggestions.items():
-                if isinstance(e, error_type):
-                    suggestion = message
-                    break
-
-        if suggestion:
-            console.print(f"[cyan]Suggestion:[/cyan] {suggestion}")
-        elif isinstance(e, (PermissionError, OSError)):
-            console.print("[cyan]Suggestion:[/cyan] Check file permissions and disk space")
-        elif isinstance(e, (ConnectionError, TimeoutError)):
-            console.print("[cyan]Suggestion:[/cyan] Check your internet connection")
-
-        if reraise:
-            raise
-        return None
 
 
 def handle_git_error(console: Console, operation: Callable[[], T], error_prefix: str = "Git") -> T:

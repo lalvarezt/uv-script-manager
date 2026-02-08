@@ -377,11 +377,6 @@ class UpdateHandler:
         return status
 
     @staticmethod
-    def _format_local_changes_label(local_change_state: str) -> str:
-        """Backward-compatible local-change labels for external callers."""
-        return format_local_change_label(local_change_state)
-
-    @staticmethod
     def _local_skip_result(display_name: str) -> tuple[str, str]:
         """Build update result tuple for local-only scripts."""
         return (display_name, UPDATE_STATUS_SKIPPED_LOCAL)
