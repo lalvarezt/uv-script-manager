@@ -183,16 +183,16 @@ def display_install_results(
     """
     table = Table(title="Installation Results")
     table.add_column("Script", style="cyan")
-    table.add_column("Status", style="green")
+    table.add_column("Status")
     table.add_column("Location")
 
     for script_name, success, location in results:
         if success:
-            status = "✓ Installed"
-            loc = str(location) if location else "N/A"
+            status = "[green]✓ Installed[/green]"
+            loc = str(location) if location else "[dim]Not symlinked[/dim]"
         else:
-            status = "✗ Failed"
-            loc = str(location)
+            status = "[red]✗ Failed[/red]"
+            loc = str(location) if location else "[dim]Unknown error[/dim]"
 
         table.add_row(script_name, status, loc)
 
@@ -343,7 +343,7 @@ def display_update_results(
     """
     table = Table(title="Update Results")
     table.add_column("Script", style="cyan")
-    table.add_column("Status", style="green")
+    table.add_column("Status")
 
     show_local_changes = any(len(result) == 3 for result in results)
     if show_local_changes:
@@ -356,25 +356,7 @@ def display_update_results(
             script_name, status = cast(tuple[str, str], result)
             local_changes = "N/A"
 
-        if status == UPDATE_STATUS_UPDATED:
-            status_text = "[green]✓ Updated[/green]"
-        elif status == UPDATE_STATUS_UP_TO_DATE:
-            status_text = render_script_status("clean")
-        elif status == UPDATE_STATUS_WOULD_UPDATE:
-            status_text = "[cyan]• Update available[/cyan]"
-        elif status in (
-            UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES,
-            UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES_LEGACY,
-        ):
-            status_text = render_script_status("needs-attention")
-        elif status == UPDATE_STATUS_SKIPPED_LOCAL:
-            status_text = render_script_status("local")
-        elif (pinned_ref := parse_pinned_status(status)) is not None:
-            status_text = render_script_status("pinned", pinned_ref)
-        elif is_error_status(status):
-            status_text = f"[red]✗ {status}[/red]"
-        else:
-            status_text = f"[yellow]• {status}[/yellow]"
+        status_text = render_update_status(status)
 
         local_changes_text = _render_local_changes_state(local_changes)
 
@@ -384,6 +366,28 @@ def display_update_results(
             table.add_row(script_name, status_text)
 
     console.print(table)
+
+
+def render_update_status(status: str) -> str:
+    """Render an update status with update-specific labels and styles."""
+    if status == UPDATE_STATUS_UPDATED:
+        return "[green]✓ Updated[/green]"
+    if status == UPDATE_STATUS_UP_TO_DATE:
+        return "[green]• Up to date[/green]"
+    if status == UPDATE_STATUS_WOULD_UPDATE:
+        return "[cyan]• Update available[/cyan]"
+    if status in (
+        UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES,
+        UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES_LEGACY,
+    ):
+        return render_script_status("needs-attention")
+    if status == UPDATE_STATUS_SKIPPED_LOCAL:
+        return "[dim]• Skipped (local-only)[/dim]"
+    if (pinned_ref := parse_pinned_status(status)) is not None:
+        return render_script_status("pinned", pinned_ref)
+    if is_error_status(status):
+        return f"[red]✗ {status}[/red]"
+    return f"[yellow]• {status}[/yellow]"
 
 
 def display_script_details(script: ScriptInfo, console: Console) -> None:

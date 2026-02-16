@@ -459,8 +459,43 @@ def test_cli_update_all_reports_local_and_pinned_statuses(tmp_path: Path) -> Non
     result = runner.invoke(cli, ["--config", str(config_path), "update", "--all"])
 
     assert result.exit_code == 0, result.output
-    assert "• Local" in result.output
+    assert "Skipped (local-only)" in result.output
     assert "Pinned (v1.0.0)" in result.output
+
+
+@REQUIRES_UV
+@REQUIRES_GIT
+def test_cli_update_reports_up_to_date_status_with_clear_label(tmp_path: Path) -> None:
+    """update should label unchanged Git scripts as up-to-date, not as clean state."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    origin = _create_origin_repo_with_tag(tmp_path)
+    current_commit = _run_git(origin, "rev-parse", f"--short={GIT_SHORT_HASH_LENGTH}", "main")
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.GIT,
+            source_url=str(origin),
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "tool-repo",
+            commit_hash=current_commit,
+        )
+    )
+
+    result = runner.invoke(cli, ["--config", str(config_path), "update", "tool.py"])
+
+    assert result.exit_code == 0, result.output
+    assert "Up to date" in result.output
 
 
 @REQUIRES_UV

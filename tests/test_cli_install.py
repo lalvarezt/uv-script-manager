@@ -1,6 +1,5 @@
 """CLI install command integration tests."""
 
-from datetime import datetime
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -8,7 +7,7 @@ from click.testing import CliRunner
 from tests.cli_helpers import REQUIRES_UV, _write_config
 from uv_helper.cli import cli
 from uv_helper.constants import SourceType
-from uv_helper.state import ScriptInfo, StateManager
+from uv_helper.state import StateManager
 
 
 def test_cli_local_install_update_and_remove(tmp_path: Path, monkeypatch) -> None:
@@ -74,7 +73,7 @@ def test_cli_local_install_update_and_remove(tmp_path: Path, monkeypatch) -> Non
 
     update_all_result = runner.invoke(cli, ["update", "--all"])
     assert update_all_result.exit_code == 0, update_all_result.output
-    assert "• Local" in update_all_result.output
+    assert "Skipped (local-only)" in update_all_result.output
 
     remove_result = runner.invoke(cli, ["remove", script_rel], input="y\n")
     assert remove_result.exit_code == 0, remove_result.output
@@ -377,6 +376,41 @@ def test_cli_install_prints_multi_script_next_hint(tmp_path: Path, monkeypatch) 
 
     assert result.exit_code == 0, result.output
     assert "Next: uv-helper list --verbose" in result.output
+
+
+def test_cli_install_reports_no_symlink_location_consistently(tmp_path: Path, monkeypatch) -> None:
+    """install should show a clear location label when symlink creation is disabled."""
+    runner = CliRunner()
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr(
+        "uv_helper.cli.InstallHandler.install",
+        lambda self, source, scripts, request: [("tool.py", True, None)],
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--config",
+            str(config_path),
+            "install",
+            str(source_dir),
+            "--script",
+            "tool.py",
+            "--no-symlink",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Not symlinked" in result.output
 
 
 @REQUIRES_UV
