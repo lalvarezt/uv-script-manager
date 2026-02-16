@@ -146,14 +146,14 @@ def _get_list_column_max_widths(console: Console, verbose: bool, full: bool) -> 
     width = max(console.width, 80)
     if verbose:
         return {
-            "script": max(16, min(30, width // 6)),
-            "status": max(14, min(20, width // 8)),
-            "source": max(18, min(36, width // 4)),
-            "ref": max(8, min(16, width // 10)),
+            "script": max(16, min(26, width // 7)),
+            "status": max(16, min(22, width // 7)),
+            "source": max(16, min(26, width // 7)),
+            "ref": max(10, min(18, width // 9)),
             "updated": 16,
-            "commit": max(8, min(12, width // 11)),
-            "local_changes": max(14, min(20, width // 7)),
-            "dependencies": max(16, min(36, width // 4)),
+            "commit": max(8, min(10, width // 14)),
+            "local_changes": max(12, min(16, width // 9)),
+            "dependencies": max(12, min(18, width // 8)),
         }
 
     return {
@@ -239,6 +239,7 @@ def display_scripts_table(
     )
     table.add_column(
         "Status",
+        min_width=10,
         max_width=widths["status"],
         overflow=overflow,
         no_wrap=not full,
@@ -253,6 +254,7 @@ def display_scripts_table(
     table.add_column(
         "Ref",
         style="green",
+        min_width=8,
         max_width=widths["ref"],
         overflow=overflow,
         no_wrap=not full,
@@ -345,7 +347,10 @@ def display_update_results(
     table.add_column("Script", style="cyan")
     table.add_column("Status")
 
-    show_local_changes = any(len(result) == 3 for result in results)
+    show_local_changes = any(
+        len(result) == 3 and cast(tuple[str, str, str], result)[2].strip().lower() != "n/a"
+        for result in results
+    )
     if show_local_changes:
         table.add_column("Local changes")
 

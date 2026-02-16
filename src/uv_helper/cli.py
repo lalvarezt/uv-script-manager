@@ -145,6 +145,37 @@ def _is_install_candidate(path: Path, show_all: bool = False) -> bool:
     return not path.name.endswith(SCRIPT_CANDIDATE_EXCLUDED_SUFFIXES)
 
 
+def _install_hint_sort_key(path: Path) -> tuple[int, int, str]:
+    """Rank candidate scripts for the browse install hint."""
+    lowered_parts = [part.lower() for part in path.parts]
+    parent_parts = lowered_parts[:-1]
+    file_name = path.name.lower()
+
+    score = 0
+
+    if len(lowered_parts) == 1:
+        score -= 20
+    else:
+        score += len(lowered_parts) * 2
+
+    if parent_parts and parent_parts[0] in {"scripts", "bin"}:
+        score -= 8
+
+    if any(
+        part in {"docs", "doc", "tests", "test", "examples", "example", "samples", "sample"}
+        for part in parent_parts
+    ):
+        score += 60
+
+    if file_name in {"main.py", "cli.py", "run.py", "app.py", "tool.py", "server.py", "manage.py"}:
+        score -= 30
+
+    if file_name == "__main__.py":
+        score -= 25
+
+    return (score, len(lowered_parts), path.as_posix())
+
+
 def _discover_install_script_candidates(source: str, clone_depth: int) -> list[str]:
     """Discover candidate script paths for interactive install mode."""
     import tempfile
@@ -1292,8 +1323,10 @@ def browse(ctx: click.Context, git_url: str, show_all: bool) -> None:
     def display_results(py_files: list[Path], repo_name: str) -> None:
         """Display the results as a tree."""
         if not py_files:
-            console.print("\n[yellow]No Python scripts found.[/yellow]")
-            if not show_all:
+            if show_all:
+                console.print("\n[yellow]No Python files found.[/yellow]")
+            else:
+                console.print("\n[yellow]No candidate scripts found.[/yellow]")
                 console.print("[dim]Try --all to include __init__.py, setup.py, test files, etc.[/dim]")
             return
 
@@ -1319,18 +1352,18 @@ def browse(ctx: click.Context, git_url: str, show_all: bool) -> None:
                 dir_node.add(f"[cyan]{py_file.name}[/cyan]")
 
         console.print(tree)
-        found_label = "Python file(s)" if show_all else "installable script(s)"
+        found_label = "Python file(s)" if show_all else "candidate script(s)"
         console.print(f"\n[dim]{len(py_files)} {found_label} found[/dim]")
 
         # Show install hint using an installable candidate.
         installable_files = [path for path in py_files if _is_install_candidate(path, show_all=False)]
         if installable_files:
-            example_script = installable_files[0]
+            example_script = min(installable_files, key=_install_hint_sort_key)
             console.print(f"\n[dim]Install with: uv-helper install {git_url} -s {example_script}[/dim]")
         elif show_all:
             console.print(
-                "\n[dim]No installable scripts in this list. "
-                "Remove --all to show only installable files.[/dim]"
+                "\n[dim]No candidate scripts in this list. "
+                "Remove --all to focus on likely install targets.[/dim]"
             )
 
     def try_github_api(owner: str, repo: str, ref: str | None) -> list[str] | None:
@@ -1516,7 +1549,7 @@ def doctor(ctx: click.Context, repair: bool) -> None:
     issues = state_manager.validate_state()
 
     if not issues:
-        console.print(f"{render_script_status('clean')} No issues found - state is healthy")
+        console.print(f"{render_script_status('clean')}: No issues found - state is healthy")
     else:
         console.print(f"{render_script_status('needs-attention')} Found {len(issues)} issue(s):\n")
         for issue in issues:

@@ -126,7 +126,7 @@ def test_cli_browse_uses_github_api_when_available(tmp_path: Path, monkeypatch) 
     assert "tool.py" in result.output
     assert "__init__.py" not in result.output
     assert "test_tool.py" not in result.output
-    assert "2 installable script(s) found" in result.output
+    assert "2 candidate script(s) found" in result.output
 
 
 def test_cli_browse_clone_fallback_respects_all_flag(tmp_path: Path, monkeypatch) -> None:
@@ -175,7 +175,7 @@ def test_cli_browse_clone_fallback_respects_all_flag(tmp_path: Path, monkeypatch
     assert "__init__.py" not in default_result.output
     assert "test_tool.py" not in default_result.output
     assert "secret.py" not in default_result.output
-    assert "1 installable script(s) found" in default_result.output
+    assert "1 candidate script(s) found" in default_result.output
 
     all_result = runner.invoke(
         cli,
@@ -188,6 +188,49 @@ def test_cli_browse_clone_fallback_respects_all_flag(tmp_path: Path, monkeypatch
     assert "test_tool.py" in all_result.output
     assert "secret.py" not in all_result.output
     assert "3 Python file(s) found" in all_result.output
+
+
+def test_cli_browse_prefers_better_install_hint_over_docs_file(tmp_path: Path, monkeypatch) -> None:
+    """browse install hint should prefer likely entrypoints over documentation scripts."""
+    import tempfile
+
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
+
+    real_which = shutil.which
+
+    def fake_which(cmd: str) -> str | None:
+        if cmd == "gh":
+            return None
+        return real_which(cmd)
+
+    monkeypatch.setattr(shutil, "which", fake_which)
+
+    def fake_clone_or_update(url, ref, repo_path, depth=1, ref_type=None):
+        repo_path.mkdir(parents=True, exist_ok=True)
+        (repo_path / "docs").mkdir(exist_ok=True)
+        (repo_path / "docs" / "conf.py").write_text("print('docs')\n", encoding="utf-8")
+        (repo_path / "src").mkdir(exist_ok=True)
+        (repo_path / "src" / "cli.py").write_text("print('cli')\n", encoding="utf-8")
+
+    monkeypatch.setattr("uv_helper.git_manager.clone_or_update", fake_clone_or_update)
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "browse", "https://github.com/acme/repo"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "2 candidate script(s) found" in result.output
+    assert "Install with: uv-helper install https://github.com/acme/repo -s src/cli.py" in result.output
 
 
 def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeypatch) -> None:
@@ -232,7 +275,7 @@ def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeyp
     )
     assert browse_no_scripts.exit_code == 0, browse_no_scripts.output
     assert "GitHub API unavailable, falling back to clone" in browse_no_scripts.output
-    assert "No Python scripts found." in browse_no_scripts.output
+    assert "No candidate scripts found." in browse_no_scripts.output
 
     browse_all = runner.invoke(
         cli,
@@ -240,7 +283,7 @@ def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeyp
     )
     assert browse_all.exit_code == 0, browse_all.output
     assert "2 Python file(s) found" in browse_all.output
-    assert "No installable scripts in this list" in browse_all.output
+    assert "No candidate scripts in this list" in browse_all.output
 
     monkeypatch.setattr(
         "uv_helper.git_manager.clone_or_update",
@@ -266,4 +309,4 @@ def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeyp
     assert doctor_result.exit_code == 0, doctor_result.output
     assert "uv (Python package manager):" in doctor_result.output
     assert "Not found" in doctor_result.output
-    assert "No issues found - state is healthy" in doctor_result.output
+    assert "• Clean: No issues found - state is healthy" in doctor_result.output

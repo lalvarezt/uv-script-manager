@@ -119,6 +119,39 @@ def test_cli_update_all_alias_is_hidden_but_still_available(tmp_path: Path, monk
     assert "No scripts installed." in alias_result.output
 
 
+def test_cli_update_all_dry_run_hides_local_changes_when_all_values_are_na(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Dry-run update table should omit Local changes when every row is N/A."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="local.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "local-repo",
+            source_path=tmp_path,
+        )
+    )
+
+    result = runner.invoke(cli, ["update", "--all", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "Skipped (local-only)" in result.output
+    assert "Local changes" not in result.output
+
+
 def test_cli_local_update_without_copy_parent_dir(tmp_path: Path, monkeypatch) -> None:
     """Test updating a local script installed without --copy-parent-dir."""
     runner = CliRunner()

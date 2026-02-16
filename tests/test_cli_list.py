@@ -148,6 +148,54 @@ def test_cli_list_full_changes_wide_verbose_output_for_long_values(tmp_path: Pat
     assert "…" not in full_result.output
 
 
+def test_cli_list_verbose_keeps_status_and_ref_readable_at_medium_width(tmp_path: Path, monkeypatch) -> None:
+    """list --verbose should keep status and ref labels readable at 120 columns."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_helper.local_changes.get_local_change_state", lambda repo, name: "managed")
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="managed.py",
+            source_type=SourceType.GIT,
+            source_url="https://github.com/acme/repo",
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "managed-repo",
+            commit_hash="12345678",
+        )
+    )
+    state_manager.add_script(
+        ScriptInfo(
+            name="local.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=repo_dir / "local-repo",
+            source_path=Path("/very/long/source/path/that/forces/column/pressure/on/the/table/layout"),
+            dependencies=["verylongdependencyname_" * 4],
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "list", "--verbose"],
+        terminal_width=120,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "• Managed" in result.output
+    assert "main" in result.output
+
+
 def test_cli_list_filters_by_source_ref_and_status(tmp_path: Path, monkeypatch) -> None:
     """list should filter entries by source, ref, and status."""
     runner = CliRunner()
