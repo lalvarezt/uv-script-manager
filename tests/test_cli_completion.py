@@ -67,15 +67,12 @@ def test_complete_script_names_returns_empty_on_internal_error(monkeypatch) -> N
 
 def test_complete_script_names_uses_parent_context_config(tmp_path: Path, monkeypatch) -> None:
     """Completion should honor --config values parsed on parent context."""
-    from uv_helper.config import load_config
-
     repo_dir = tmp_path / "repos"
     install_dir = tmp_path / "bin"
     state_file = tmp_path / "state.json"
     config_path = tmp_path / "custom.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    config = load_config(config_path)
     state_manager = StateManager(state_file)
     state_manager.add_script(
         ScriptInfo(
@@ -102,15 +99,12 @@ def test_complete_script_names_uses_parent_context_config(tmp_path: Path, monkey
 
 def test_complete_script_names_uses_comp_words_config(tmp_path: Path, monkeypatch) -> None:
     """Completion should parse --config from COMP_WORDS when context lacks object state."""
-    from uv_helper.config import load_config
-
     repo_dir = tmp_path / "repos"
     install_dir = tmp_path / "bin"
     state_file = tmp_path / "state.json"
     config_path = tmp_path / "custom.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    config = load_config(config_path)
     state_manager = StateManager(state_file)
     state_manager.add_script(
         ScriptInfo(
