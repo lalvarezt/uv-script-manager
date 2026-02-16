@@ -46,12 +46,19 @@ class RemoveHandler:
 
         # Confirm removal
         if not force:
+            symlink_display = str(script_info.symlink_path) if script_info.symlink_path else "Not symlinked"
             self.console.print(f"Removing script: [cyan]{display_name}[/cyan]")
             self.console.print(f"  Source: {script_info.source_display}")
-            self.console.print(f"  Symlink: {script_info.symlink_path}")
+            self.console.print(f"  Symlink: {symlink_display}")
 
             if clean_repo:
-                self.console.print(f"  Repository: {script_info.repo_path} (will be removed)")
+                scripts_from_repo = self.state_manager.get_scripts_from_repo(script_info.repo_path)
+                remaining = max(len(scripts_from_repo) - 1, 0)
+                if remaining == 0:
+                    repo_action = "will be removed"
+                else:
+                    repo_action = f"kept (shared by {remaining} other script(s))"
+                self.console.print(f"  Repository: {script_info.repo_path} ({repo_action})")
 
             if not prompt_confirm("Proceed with removal?", default=False):
                 self.console.print("Removal cancelled.")

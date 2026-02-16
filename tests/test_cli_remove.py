@@ -256,3 +256,41 @@ def test_cli_remove_dry_run_does_not_mutate_state(tmp_path: Path) -> None:
     assert StateManager(state_file).get_script("tool.py") is not None
     assert symlink_path.exists()
     assert script_repo.exists()
+
+
+def test_cli_remove_dry_run_without_symlink_uses_clear_label(tmp_path: Path, monkeypatch) -> None:
+    """remove --dry-run should label missing symlink paths consistently."""
+    runner = CliRunner()
+
+    repo_dir = tmp_path / "repos"
+    install_dir = tmp_path / "bin"
+    state_file = tmp_path / "state.json"
+    config_path = tmp_path / "config.toml"
+    _write_config(config_path, repo_dir, install_dir, state_file)
+
+    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+
+    script_repo = repo_dir / "tool-repo"
+    script_repo.mkdir(parents=True)
+    script_path = script_repo / "tool.py"
+    script_path.write_text("print('hello')\n", encoding="utf-8")
+
+    state_manager = StateManager(state_file)
+    state_manager.add_script(
+        ScriptInfo(
+            name="tool.py",
+            source_type=SourceType.LOCAL,
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            source_path=tmp_path,
+            symlink_path=None,
+        )
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_path), "remove", "tool.py", "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Symlink: Not symlinked" in result.output

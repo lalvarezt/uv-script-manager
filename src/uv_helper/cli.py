@@ -886,7 +886,8 @@ def remove(
         console.print("[bold]Dry run:[/bold] remove")
         console.print(f"  Script: {script_info.display_name}")
         console.print(f"  Source: {script_info.source_display}")
-        console.print(f"  Symlink: {script_info.symlink_path or 'None'}")
+        symlink_display = str(script_info.symlink_path) if script_info.symlink_path else "Not symlinked"
+        console.print(f"  Symlink: {symlink_display}")
 
         if clean_repo:
             scripts_from_repo = state_manager.get_scripts_from_repo(script_info.repo_path)
@@ -1318,12 +1319,19 @@ def browse(ctx: click.Context, git_url: str, show_all: bool) -> None:
                 dir_node.add(f"[cyan]{py_file.name}[/cyan]")
 
         console.print(tree)
-        console.print(f"\n[dim]{len(py_files)} script(s) found[/dim]")
+        found_label = "Python file(s)" if show_all else "installable script(s)"
+        console.print(f"\n[dim]{len(py_files)} {found_label} found[/dim]")
 
-        # Show install hint
-        if py_files:
-            example_script = py_files[0]
+        # Show install hint using an installable candidate.
+        installable_files = [path for path in py_files if _is_install_candidate(path, show_all=False)]
+        if installable_files:
+            example_script = installable_files[0]
             console.print(f"\n[dim]Install with: uv-helper install {git_url} -s {example_script}[/dim]")
+        elif show_all:
+            console.print(
+                "\n[dim]No installable scripts in this list. "
+                "Remove --all to show only installable files.[/dim]"
+            )
 
     def try_github_api(owner: str, repo: str, ref: str | None) -> list[str] | None:
         """Try to list .py files using GitHub API.

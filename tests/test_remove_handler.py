@@ -81,6 +81,48 @@ def test_remove_non_force_git_prints_details_and_can_cancel(tmp_path: Path, monk
     assert "Removal cancelled." in output
 
 
+def test_remove_non_force_clean_repo_reports_shared_repo_as_kept(tmp_path: Path, monkeypatch) -> None:
+    """Non-force clean-repo prompt should report when a repository is shared."""
+    handler = _build_handler(tmp_path)
+    script_repo = tmp_path / "repos" / "shared-repo"
+    symlink_a = tmp_path / "bin" / "a.py"
+    symlink_b = tmp_path / "bin" / "b.py"
+
+    handler.state_manager.add_script(
+        ScriptInfo(
+            name="a.py",
+            source_type=SourceType.GIT,
+            source_url="https://github.com/acme/repo",
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            symlink_path=symlink_a,
+        )
+    )
+    handler.state_manager.add_script(
+        ScriptInfo(
+            name="b.py",
+            source_type=SourceType.GIT,
+            source_url="https://github.com/acme/repo",
+            ref="main",
+            ref_type="branch",
+            installed_at=datetime.now(),
+            repo_path=script_repo,
+            symlink_path=symlink_b,
+        )
+    )
+
+    monkeypatch.setattr("uv_helper.commands.remove.prompt_confirm", lambda *args, **kwargs: False)
+
+    handler.remove("a.py", clean_repo=True, force=False)
+
+    output = handler.console.export_text()
+    assert "Repository:" in output
+    assert "kept (shared by 1 other script(s))" in output
+    assert "Removal cancelled." in output
+
+
 def test_remove_re_raises_script_installer_error(tmp_path: Path, monkeypatch) -> None:
     """RemoveHandler should print and re-raise ScriptInstallerError from installer layer."""
     handler = _build_handler(tmp_path)

@@ -7,9 +7,9 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from tests.cli_helpers import REQUIRES_UV, _run_git, _write_config
+from tests.cli_helpers import REQUIRES_UV, _write_config
 from uv_helper.cli import cli
-from uv_helper.constants import GIT_SHORT_HASH_LENGTH, SourceType
+from uv_helper.constants import SourceType
 from uv_helper.git_manager import GitError
 from uv_helper.script_installer import ScriptInstallerError
 from uv_helper.state import ScriptInfo, StateManager
@@ -126,7 +126,7 @@ def test_cli_browse_uses_github_api_when_available(tmp_path: Path, monkeypatch) 
     assert "tool.py" in result.output
     assert "__init__.py" not in result.output
     assert "test_tool.py" not in result.output
-    assert "2 script(s) found" in result.output
+    assert "2 installable script(s) found" in result.output
 
 
 def test_cli_browse_clone_fallback_respects_all_flag(tmp_path: Path, monkeypatch) -> None:
@@ -175,7 +175,7 @@ def test_cli_browse_clone_fallback_respects_all_flag(tmp_path: Path, monkeypatch
     assert "__init__.py" not in default_result.output
     assert "test_tool.py" not in default_result.output
     assert "secret.py" not in default_result.output
-    assert "1 script(s) found" in default_result.output
+    assert "1 installable script(s) found" in default_result.output
 
     all_result = runner.invoke(
         cli,
@@ -187,7 +187,7 @@ def test_cli_browse_clone_fallback_respects_all_flag(tmp_path: Path, monkeypatch
     assert "__init__.py" in all_result.output
     assert "test_tool.py" in all_result.output
     assert "secret.py" not in all_result.output
-    assert "3 script(s) found" in all_result.output
+    assert "3 Python file(s) found" in all_result.output
 
 
 def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeypatch) -> None:
@@ -233,6 +233,14 @@ def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeyp
     assert browse_no_scripts.exit_code == 0, browse_no_scripts.output
     assert "GitHub API unavailable, falling back to clone" in browse_no_scripts.output
     assert "No Python scripts found." in browse_no_scripts.output
+
+    browse_all = runner.invoke(
+        cli,
+        ["--config", str(config_path), "browse", "https://github.com/acme/repo", "--all"],
+    )
+    assert browse_all.exit_code == 0, browse_all.output
+    assert "2 Python file(s) found" in browse_all.output
+    assert "No installable scripts in this list" in browse_all.output
 
     monkeypatch.setattr(
         "uv_helper.git_manager.clone_or_update",
