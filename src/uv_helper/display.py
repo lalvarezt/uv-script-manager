@@ -111,13 +111,13 @@ def render_script_status(status_key: str, detail: str | None = None) -> str:
     """Render a canonical script status with consistent rich styling."""
     status_key = _normalize_status_key(status_key)
     labels = {
-        "clean": "[green]• Clean[/green]",
-        "pinned": "[yellow]• Pinned[/yellow]",
-        "local": "[dim]• Local[/dim]",
-        "needs-attention": "[#ff8c00]• Needs attention[/]",
-        "managed": "[green]• Managed[/green]",
-        "unknown": "[dim]• Unknown[/dim]",
-        "git": "[cyan]• Git[/cyan]",
+        "clean": "[green]Clean[/green]",
+        "pinned": "[yellow]Pinned[/yellow]",
+        "local": "[dim]Local[/dim]",
+        "needs-attention": "[#ff8c00]Needs attention[/]",
+        "managed": "[green]Managed[/green]",
+        "unknown": "[dim]Unknown[/dim]",
+        "git": "[cyan]Git[/cyan]",
     }
     rendered = labels[status_key]
     if detail:
@@ -134,7 +134,7 @@ def _render_local_changes_state(local_state: str) -> str:
     if status_key in ("managed", "clean", "needs-attention"):
         return render_script_status(status_key)
 
-    return "[dim]• Unknown[/dim]"
+    return "[dim]Unknown[/dim]"
 
 
 def _get_list_column_max_widths(console: Console, verbose: bool, full: bool) -> dict[str, int | None]:
@@ -378,21 +378,21 @@ def render_update_status(status: str) -> str:
     if status == UPDATE_STATUS_UPDATED:
         return "[green]✓ Updated[/green]"
     if status == UPDATE_STATUS_UP_TO_DATE:
-        return "[green]• Up to date[/green]"
+        return "[green]Up to date[/green]"
     if status == UPDATE_STATUS_WOULD_UPDATE:
-        return "[cyan]• Update available[/cyan]"
+        return "[cyan]Update available[/cyan]"
     if status in (
         UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES,
         UPDATE_STATUS_WOULD_UPDATE_LOCAL_CHANGES_LEGACY,
     ):
         return render_script_status("needs-attention")
     if status == UPDATE_STATUS_SKIPPED_LOCAL:
-        return "[dim]• Skipped (local-only)[/dim]"
+        return "[dim]Skipped (local-only)[/dim]"
     if (pinned_ref := parse_pinned_status(status)) is not None:
         return render_script_status("pinned", pinned_ref)
     if is_error_status(status):
         return f"[red]✗ {status}[/red]"
-    return f"[yellow]• {status}[/yellow]"
+    return f"[yellow]{status}[/yellow]"
 
 
 def display_script_details(script: ScriptInfo, console: Console) -> None:

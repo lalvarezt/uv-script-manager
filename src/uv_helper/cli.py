@@ -1224,7 +1224,7 @@ def import_scripts(ctx: click.Context, file: Path, force: bool, dry_run: bool) -
             else:
                 ref_str = ""
             alias_str = f" (as {alias})" if alias else ""
-            console.print(f"  • {name}{alias_str} from {source}{ref_str}")
+            console.print(f"  {name}{alias_str} from {source}{ref_str}")
         return
 
     console.print(f"Importing {len(scripts)} script(s)...\n")
@@ -1553,7 +1553,7 @@ def doctor(ctx: click.Context, repair: bool) -> None:
     else:
         console.print(f"{render_script_status('needs-attention')} Found {len(issues)} issue(s):\n")
         for issue in issues:
-            console.print(f"  • {issue}")
+            console.print(f"  {issue}")
 
         if repair:
             console.print("\n[cyan]Repairing state...[/cyan]")
@@ -1561,10 +1561,10 @@ def doctor(ctx: click.Context, repair: bool) -> None:
 
             console.print("\n[green]✓ Repair complete[/green]")
             if report["broken_symlinks_removed"] > 0:
-                console.print(f"  • Removed {report['broken_symlinks_removed']} broken symlink(s)")
+                console.print(f"  Removed {report['broken_symlinks_removed']} broken symlink(s)")
             if report["missing_scripts_removed"] > 0:
                 removed_count = report["missing_scripts_removed"]
-                console.print(f"  • Removed {removed_count} missing script(s) from database")
+                console.print(f"  Removed {removed_count} missing script(s) from database")
         else:
             console.print("\n[dim]Run 'uv-helper doctor --repair' to fix these issues[/dim]")
 

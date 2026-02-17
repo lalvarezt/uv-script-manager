@@ -192,7 +192,7 @@ def test_cli_list_verbose_keeps_status_and_ref_readable_at_medium_width(tmp_path
     )
 
     assert result.exit_code == 0, result.output
-    assert "• Managed" in result.output
+    assert "Managed" in result.output
     assert "main" in result.output
 
 

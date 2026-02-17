@@ -309,4 +309,4 @@ def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeyp
     assert doctor_result.exit_code == 0, doctor_result.output
     assert "uv (Python package manager):" in doctor_result.output
     assert "Not found" in doctor_result.output
-    assert "• Clean: No issues found - state is healthy" in doctor_result.output
+    assert "Clean: No issues found - state is healthy" in doctor_result.output
