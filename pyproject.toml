@@ -1,6 +1,6 @@
 [project]
 name = "uv-script-manager"
-version = "1.5.0"
+version = "1.6.0"
 description = "CLI tool to install and manage Python scripts from Git repositories without setup.py/pyproject.toml"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -30,6 +30,7 @@ dependencies = [
 
 [project.scripts]
 uv-script-manager = "uv_script_manager.cli:cli"
+uvsm = "uv_script_manager.cli:cli"
 
 [build-system]
 requires = ["hatchling"]

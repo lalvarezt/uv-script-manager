@@ -63,7 +63,10 @@ command
 ```bash
 uv tool install uv-script-manager
 uv-script-manager --version
+uvsm --version
 ```
+
+`uvsm` is the short alias for `uv-script-manager`.
 
 ### From Source
 
