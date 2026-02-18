@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from uv_helper.local_changes import (
+from uv_script_manager.local_changes import (
     _is_uv_managed_script_change,
     _strip_initial_shebang,
     _strip_uv_managed_header,
@@ -119,7 +119,7 @@ def test_clear_managed_script_changes_returns_false_on_checkout_failure(monkeypa
     def raise_checkout(*args, **kwargs):
         raise subprocess.CalledProcessError(1, args[0], stderr="checkout failed")
 
-    monkeypatch.setattr("uv_helper.local_changes.run_command", raise_checkout)
+    monkeypatch.setattr("uv_script_manager.local_changes.run_command", raise_checkout)
 
     assert clear_managed_script_changes(tmp_path, "tool.py") is False
 

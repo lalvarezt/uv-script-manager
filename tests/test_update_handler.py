@@ -7,12 +7,12 @@ from typing import cast
 import pytest
 from rich.console import Console
 
-from uv_helper.commands.update import UpdateHandler
-from uv_helper.config import load_config
-from uv_helper.constants import SourceType
-from uv_helper.git_manager import GitError
-from uv_helper.script_installer import ScriptInstallerError
-from uv_helper.state import ScriptInfo
+from uv_script_manager.commands.update import UpdateHandler
+from uv_script_manager.config import load_config
+from uv_script_manager.constants import SourceType
+from uv_script_manager.git_manager import GitError
+from uv_script_manager.script_installer import ScriptInstallerError
+from uv_script_manager.state import ScriptInfo
 
 
 def _write_config(
@@ -98,8 +98,11 @@ def test_update_dry_run_git_returns_status_and_local_changes_label(tmp_path: Pat
     handler, repo_dir, _install_dir = _build_handler(tmp_path)
     _add_git_script(handler, repo_dir / "repo")
 
-    monkeypatch.setattr("uv_helper.commands.update.verify_git_available", lambda: True)
-    monkeypatch.setattr("uv_helper.commands.update.get_local_change_state", lambda *args, **kwargs: "managed")
+    monkeypatch.setattr("uv_script_manager.commands.update.verify_git_available", lambda: True)
+    monkeypatch.setattr(
+        "uv_script_manager.commands.update.get_local_change_state",
+        lambda *args, **kwargs: "managed",
+    )
     monkeypatch.setattr(
         handler,
         "_check_git_script_update_status",
@@ -117,8 +120,11 @@ def test_update_all_collects_errors_for_dry_and_apply_modes(tmp_path: Path, monk
     _add_local_script(handler, repo_dir / "local", tmp_path / "source", name="local.py")
     _add_git_script(handler, repo_dir / "git", name="git.py")
 
-    monkeypatch.setattr("uv_helper.commands.update.verify_git_available", lambda: True)
-    monkeypatch.setattr("uv_helper.commands.update.get_local_change_state", lambda *args, **kwargs: "clean")
+    monkeypatch.setattr("uv_script_manager.commands.update.verify_git_available", lambda: True)
+    monkeypatch.setattr(
+        "uv_script_manager.commands.update.get_local_change_state",
+        lambda *args, **kwargs: "clean",
+    )
     monkeypatch.setattr(
         handler,
         "_check_git_script_update_status",
@@ -190,8 +196,11 @@ def test_update_local_script_refreshes_dependencies_and_prints_shadow_warning(
         install_alias_seen["value"] = install_config.script_alias
         return install_dir / "short", "shadows existing command"
 
-    monkeypatch.setattr("uv_helper.commands.update.resolve_dependencies", lambda *args, **kwargs: ["click"])
-    monkeypatch.setattr("uv_helper.commands.update.install_script", fake_install_script)
+    monkeypatch.setattr(
+        "uv_script_manager.commands.update.resolve_dependencies",
+        lambda *args, **kwargs: ["click"],
+    )
+    monkeypatch.setattr("uv_script_manager.commands.update.install_script", fake_install_script)
 
     result = handler._update_local_script(script_info, exact=True, refresh_deps=True)
 
@@ -224,7 +233,7 @@ def test_update_local_script_returns_error_tuple_on_install_failure(tmp_path: Pa
     )
 
     monkeypatch.setattr(
-        "uv_helper.commands.update.install_script",
+        "uv_script_manager.commands.update.install_script",
         lambda *args, **kwargs: (_ for _ in ()).throw(ScriptInstallerError("install failed")),
     )
 
@@ -239,7 +248,7 @@ def test_update_git_script_returns_error_tuple_when_internal_update_fails(
     handler, repo_dir, _install_dir = _build_handler(tmp_path)
     _add_git_script(handler, repo_dir / "git")
 
-    monkeypatch.setattr("uv_helper.commands.update.verify_git_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.commands.update.verify_git_available", lambda: True)
     monkeypatch.setattr(
         handler,
         "_update_git_script_internal",
@@ -261,7 +270,7 @@ def test_update_git_internal_up_to_date_and_local_change_guards(tmp_path: Path, 
     assert script_info is not None
 
     monkeypatch.setattr(
-        "uv_helper.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "abc12345"
+        "uv_script_manager.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "abc12345"
     )
     assert (
         handler._update_git_script_internal(script_info, force=False, exact=None, refresh_deps=False)
@@ -269,17 +278,20 @@ def test_update_git_internal_up_to_date_and_local_change_guards(tmp_path: Path, 
     )
 
     monkeypatch.setattr(
-        "uv_helper.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "fffffff1"
+        "uv_script_manager.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "fffffff1"
     )
     monkeypatch.setattr(
-        "uv_helper.commands.update.get_local_change_state", lambda *args, **kwargs: "blocking"
+        "uv_script_manager.commands.update.get_local_change_state", lambda *args, **kwargs: "blocking"
     )
     with pytest.raises(GitError, match="custom local changes"):
         handler._update_git_script_internal(script_info, force=False, exact=None, refresh_deps=False)
 
-    monkeypatch.setattr("uv_helper.commands.update.get_local_change_state", lambda *args, **kwargs: "managed")
     monkeypatch.setattr(
-        "uv_helper.commands.update.clear_managed_script_changes", lambda *args, **kwargs: False
+        "uv_script_manager.commands.update.get_local_change_state",
+        lambda *args, **kwargs: "managed",
+    )
+    monkeypatch.setattr(
+        "uv_script_manager.commands.update.clear_managed_script_changes", lambda *args, **kwargs: False
     )
     with pytest.raises(GitError, match="Failed to clear uv-managed"):
         handler._update_git_script_internal(script_info, force=False, exact=None, refresh_deps=False)
@@ -293,15 +305,18 @@ def test_update_git_internal_fallback_branch_up_to_date_after_pull(tmp_path: Pat
     assert script_info is not None
 
     monkeypatch.setattr(
-        "uv_helper.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "remote-new"
-    )
-    monkeypatch.setattr("uv_helper.commands.update.get_local_change_state", lambda *args, **kwargs: "clean")
-    monkeypatch.setattr("uv_helper.commands.update.clone_or_update", lambda *args, **kwargs: True)
-    monkeypatch.setattr(
-        "uv_helper.commands.update.get_current_commit_hash", lambda *args, **kwargs: "abc12345"
+        "uv_script_manager.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "remote-new"
     )
     monkeypatch.setattr(
-        "uv_helper.commands.update.get_default_branch",
+        "uv_script_manager.commands.update.get_local_change_state",
+        lambda *args, **kwargs: "clean",
+    )
+    monkeypatch.setattr("uv_script_manager.commands.update.clone_or_update", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        "uv_script_manager.commands.update.get_current_commit_hash", lambda *args, **kwargs: "abc12345"
+    )
+    monkeypatch.setattr(
+        "uv_script_manager.commands.update.get_default_branch",
         lambda *args, **kwargs: (_ for _ in ()).throw(GitError("detached")),
     )
 
@@ -325,20 +340,26 @@ def test_update_git_internal_updates_state_with_alias_and_warning(tmp_path: Path
     install_alias_seen: dict[str, str | None] = {"value": None}
 
     monkeypatch.setattr(
-        "uv_helper.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "remote-new"
+        "uv_script_manager.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "remote-new"
     )
-    monkeypatch.setattr("uv_helper.commands.update.get_local_change_state", lambda *args, **kwargs: "clean")
-    monkeypatch.setattr("uv_helper.commands.update.clone_or_update", lambda *args, **kwargs: True)
     monkeypatch.setattr(
-        "uv_helper.commands.update.get_current_commit_hash", lambda *args, **kwargs: "fffffff1"
+        "uv_script_manager.commands.update.get_local_change_state",
+        lambda *args, **kwargs: "clean",
     )
-    monkeypatch.setattr("uv_helper.commands.update.get_default_branch", lambda *args, **kwargs: "main")
+    monkeypatch.setattr("uv_script_manager.commands.update.clone_or_update", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        "uv_script_manager.commands.update.get_current_commit_hash", lambda *args, **kwargs: "fffffff1"
+    )
+    monkeypatch.setattr(
+        "uv_script_manager.commands.update.get_default_branch",
+        lambda *args, **kwargs: "main",
+    )
 
     def fake_install(script_path, dependencies, install_config):
         install_alias_seen["value"] = install_config.script_alias
         return install_dir / "short", "shadow warning"
 
-    monkeypatch.setattr("uv_helper.commands.update.install_script", fake_install)
+    monkeypatch.setattr("uv_script_manager.commands.update.install_script", fake_install)
 
     status = handler._update_git_script_internal(script_info, force=False, exact=True, refresh_deps=False)
 
@@ -378,15 +399,15 @@ def test_check_git_script_update_status_variants(tmp_path: Path, monkeypatch) ->
         commit_hash="22222222",
     )
     monkeypatch.setattr(
-        "uv_helper.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "22222222"
+        "uv_script_manager.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "22222222"
     )
     assert handler._check_git_script_update_status(branch, force=False, refresh_deps=False) == "up-to-date"
 
     monkeypatch.setattr(
-        "uv_helper.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "33333333"
+        "uv_script_manager.commands.update.get_remote_commit_hash", lambda *args, **kwargs: "33333333"
     )
     monkeypatch.setattr(
-        "uv_helper.commands.update.get_local_change_state", lambda *args, **kwargs: "blocking"
+        "uv_script_manager.commands.update.get_local_change_state", lambda *args, **kwargs: "blocking"
     )
     assert (
         handler._check_git_script_update_status(

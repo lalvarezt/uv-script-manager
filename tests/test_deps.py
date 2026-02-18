@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from uv_helper.deps import (
+from uv_script_manager.deps import (
     parse_dependencies_string,
     parse_requirements_file,
     resolve_dependencies,

@@ -1,4 +1,4 @@
-"""Database migration exports for UV-Helper state."""
+"""Database migration exports for state."""
 
 from .db import (
     CURRENT_SCHEMA_VERSION,

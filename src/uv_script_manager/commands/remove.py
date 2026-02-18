@@ -1,4 +1,4 @@
-"""Remove command handler for UV-Helper."""
+"""Remove command handler."""
 
 from rich.console import Console
 

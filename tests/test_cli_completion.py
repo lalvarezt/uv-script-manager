@@ -8,19 +8,19 @@ import pytest
 from click.testing import CliRunner
 
 from tests.cli_helpers import REQUIRES_UV, REQUIRES_UV_HELPER, _write_config
-from uv_helper.cli import (
+from uv_script_manager.cli import (
     _parse_script_selection,
     _prompt_for_script_selection,
     cli,
     complete_script_names,
 )
-from uv_helper.constants import SourceType
-from uv_helper.state import ScriptInfo, StateManager
+from uv_script_manager.constants import SourceType
+from uv_script_manager.state import ScriptInfo, StateManager
 
 
 def test_complete_script_names_includes_alias_from_context(tmp_path: Path, monkeypatch) -> None:
     """Shell completion should include script aliases from loaded state."""
-    from uv_helper.config import load_config
+    from uv_script_manager.config import load_config
 
     repo_dir = tmp_path / "repos"
     install_dir = tmp_path / "bin"
@@ -60,7 +60,7 @@ def test_complete_script_names_returns_empty_on_internal_error(monkeypatch) -> N
     def raise_error() -> Path:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("uv_helper.cli.get_config_path", raise_error)
+    monkeypatch.setattr("uv_script_manager.cli.get_config_path", raise_error)
 
     assert complete_script_names(ctx, param=click.Option(["--x"]), incomplete="x") == []
 
@@ -85,7 +85,7 @@ def test_complete_script_names_uses_parent_context_config(tmp_path: Path, monkey
         )
     )
 
-    monkeypatch.setattr("uv_helper.cli.get_config_path", lambda: tmp_path / "missing.toml")
+    monkeypatch.setattr("uv_script_manager.cli.get_config_path", lambda: tmp_path / "missing.toml")
 
     root_ctx = click.Context(cli)
     root_ctx.params = {"config": config_path}
@@ -117,8 +117,8 @@ def test_complete_script_names_uses_comp_words_config(tmp_path: Path, monkeypatc
         )
     )
 
-    monkeypatch.setattr("uv_helper.cli.get_config_path", lambda: tmp_path / "missing.toml")
-    monkeypatch.setenv("COMP_WORDS", f"uv-helper --config {config_path} show ")
+    monkeypatch.setattr("uv_script_manager.cli.get_config_path", lambda: tmp_path / "missing.toml")
+    monkeypatch.setenv("COMP_WORDS", f"uv-script-manager --config {config_path} show ")
 
     ctx = click.Context(cli)
     ctx.obj = None
@@ -143,7 +143,7 @@ def test_parse_script_selection_accepts_ranges_and_rejects_invalid_values() -> N
 def test_prompt_for_script_selection_retries_until_valid(monkeypatch) -> None:
     """Interactive script prompt should continue until valid input is provided."""
     responses = iter(["nope", "1-2"])
-    monkeypatch.setattr("uv_helper.cli.click.prompt", lambda *args, **kwargs: next(responses))
+    monkeypatch.setattr("uv_script_manager.cli.click.prompt", lambda *args, **kwargs: next(responses))
 
     selected = _prompt_for_script_selection(["a.py", "b.py", "c.py"])
 
@@ -155,9 +155,9 @@ def test_prompt_for_script_selection_retries_until_valid(monkeypatch) -> None:
 @pytest.mark.parametrize(
     ("shell", "marker"),
     [
-        ("bash", "_uv_helper_completion"),
-        ("zsh", "#compdef uv-helper"),
-        ("fish", "function _uv_helper_completion"),
+        ("bash", "_uv_script_manager_completion"),
+        ("zsh", "#compdef uv-script-manager"),
+        ("fish", "function _uv_script_manager_completion"),
     ],
 )
 def test_cli_completion_outputs_non_empty_script(tmp_path: Path, shell: str, marker: str) -> None:

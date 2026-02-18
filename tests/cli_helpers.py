@@ -9,8 +9,8 @@ import pytest
 REQUIRES_UV = pytest.mark.skipif(shutil.which("uv") is None, reason="uv command required")
 REQUIRES_GIT = pytest.mark.skipif(shutil.which("git") is None, reason="git command required")
 REQUIRES_UV_HELPER = pytest.mark.skipif(
-    shutil.which("uv-helper") is None,
-    reason="uv-helper executable required",
+    shutil.which("uv-script-manager") is None,
+    reason="uv-script-manager executable required",
 )
 
 

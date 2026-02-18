@@ -1,5 +1,5 @@
 [project]
-name = "uv-helper"
+name = "uv-script-manager"
 version = "1.5.0"
 description = "CLI tool to install and manage Python scripts from Git repositories without setup.py/pyproject.toml"
 readme = "README.md"
@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [project.scripts]
-uv-helper = "uv_helper.cli:cli"
+uv-script-manager = "uv_script_manager.cli:cli"
 
 [build-system]
 requires = ["hatchling"]
@@ -57,3 +57,6 @@ dev = [
   "ruff>=0.14.2",
   "ty>=0.0.1a25",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uv_script_manager"]

@@ -1,4 +1,4 @@
-"""Utility functions for UV-Helper."""
+"""Utility functions."""
 
 import logging
 import os
@@ -50,7 +50,7 @@ def is_git_url(url: str) -> bool:
     Returns:
         True if valid Git URL, False otherwise
     """
-    # Remove optional UV-Helper ref suffixes before validation.
+    # Remove optional ref suffixes before validation.
     base_url, _, _ = split_source_ref(url)
     return validate_git_url(base_url)
 

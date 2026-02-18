@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from uv_helper import script_installer
+from uv_script_manager import script_installer
 
 
 class DummyCompletedProcess(SimpleNamespace):

@@ -3,13 +3,13 @@ schema_version = 1
 
 [global.paths]
 # Where to clone repositories
-repo_dir = "~/.local/share/uv-helper"
+repo_dir = "~/.local/share/uv-script-manager"
 
 # Where to create symlinks
 install_dir = "~/.local/bin"
 
 # Where to store state file
-state_file = "~/.local/share/uv-helper/state.json"
+state_file = "~/.local/share/uv-script-manager/state.json"
 
 [global.git]
 # Git clone depth (1 for shallow clone)

@@ -6,9 +6,9 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from tests.cli_helpers import REQUIRES_UV, _write_config
-from uv_helper.cli import cli
-from uv_helper.constants import SourceType
-from uv_helper.state import ScriptInfo, StateManager
+from uv_script_manager.cli import cli
+from uv_script_manager.constants import SourceType
+from uv_script_manager.state import ScriptInfo, StateManager
 
 
 def test_cli_remove_nonexistent_script(tmp_path: Path, monkeypatch) -> None:
@@ -18,8 +18,8 @@ def test_cli_remove_nonexistent_script(tmp_path: Path, monkeypatch) -> None:
     config_path = tmp_path / "config.toml"
     _write_config(config_path, tmp_path / "repos", tmp_path / "bin", tmp_path / "state.json")
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     result = runner.invoke(cli, ["remove", "nonexistent.py"])
 
@@ -37,8 +37,8 @@ def test_cli_remove_clean_repo_prints_impact_summary(tmp_path: Path, monkeypatch
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     shared_repo = repo_dir / "shared"
     shared_repo.mkdir(parents=True)
@@ -87,7 +87,7 @@ def test_cli_show_and_remove_dry_run_not_found_errors(tmp_path: Path, monkeypatc
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     show_result = runner.invoke(cli, ["--config", str(config_path), "show", "missing.py"])
     remove_result = runner.invoke(
@@ -110,7 +110,7 @@ def test_cli_remove_dry_run_git_shared_repo_reports_kept(tmp_path: Path, monkeyp
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     shared_repo = repo_dir / "shared-repo"
     state_manager = StateManager(state_file)
@@ -268,7 +268,7 @@ def test_cli_remove_dry_run_without_symlink_uses_clear_label(tmp_path: Path, mon
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     script_repo = repo_dir / "tool-repo"
     script_repo.mkdir(parents=True)

@@ -1,4 +1,4 @@
-"""State management for UV-Helper."""
+"""State management."""
 
 from datetime import datetime
 from pathlib import Path

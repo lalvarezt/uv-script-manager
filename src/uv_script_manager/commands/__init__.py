@@ -1,4 +1,4 @@
-"""Command handlers for UV-Helper CLI."""
+"""Command handlers for the CLI."""
 
 from .install import InstallHandler, InstallRequest
 from .remove import RemoveHandler

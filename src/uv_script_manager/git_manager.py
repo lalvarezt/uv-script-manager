@@ -1,4 +1,4 @@
-"""Git operations for UV-Helper."""
+"""Git operations."""
 
 import subprocess
 from pathlib import Path

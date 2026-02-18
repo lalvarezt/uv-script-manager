@@ -1,4 +1,4 @@
-"""Configuration management for UV-Helper."""
+"""Configuration management."""
 
 import logging
 import os
@@ -97,7 +97,7 @@ class MetaConfig(BaseModel):
 
 
 class Config(BaseModel):
-    """Configuration for UV-Helper."""
+    """Application configuration."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
@@ -156,17 +156,17 @@ def get_config_path() -> Path:
     Get configuration file path.
 
     Priority:
-    1. UV_HELPER_CONFIG environment variable
-    2. Default: ~/.config/uv-helper/config.toml
+    1. UV_SCRIPT_MANAGER_CONFIG environment variable
+    2. Default: ~/.config/uv-script-manager/config.toml
 
     Returns:
         Path to config file
     """
-    env_config = os.environ.get("UV_HELPER_CONFIG")
+    env_config = os.environ.get("UV_SCRIPT_MANAGER_CONFIG")
     if env_config:
         return expand_path(env_config)
 
-    return expand_path("~/.config/uv-helper/config.toml")
+    return expand_path("~/.config/uv-script-manager/config.toml")
 
 
 def create_default_config() -> Config:

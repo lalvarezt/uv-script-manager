@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from uv_helper.git_manager import GitError
-from uv_helper.utils import (
+from uv_script_manager.git_manager import GitError
+from uv_script_manager.utils import (
     ensure_dir,
     expand_path,
     get_repo_name_from_url,
@@ -107,7 +107,7 @@ class TestCommandAndPathChecks:
         def raise_oserror(_path: str) -> Path:
             raise OSError("boom")
 
-        monkeypatch.setattr("uv_helper.utils.expand_path", raise_oserror)
+        monkeypatch.setattr("uv_script_manager.utils.expand_path", raise_oserror)
 
         assert is_local_directory("~/broken") is False
 

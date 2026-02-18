@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-import uv_helper.migrations.config.base as config_migrations_base
-from uv_helper.config import (
+import uv_script_manager.migrations.config.base as config_migrations_base
+from uv_script_manager.config import (
     CURRENT_CONFIG_SCHEMA_VERSION,
     DEFAULT_CONFIG_TEMPLATE_PATH,
     Config,
@@ -141,26 +141,26 @@ class TestGetConfigPath:
 
     def test_get_config_path_default(self, monkeypatch) -> None:
         """Test default config path when no env var is set."""
-        monkeypatch.delenv("UV_HELPER_CONFIG", raising=False)
+        monkeypatch.delenv("UV_SCRIPT_MANAGER_CONFIG", raising=False)
 
         path = get_config_path()
 
         assert path.is_absolute()
-        assert str(path).endswith(".config/uv-helper/config.toml")
+        assert str(path).endswith(".config/uv-script-manager/config.toml")
         assert "~" not in str(path)
 
     def test_get_config_path_from_env(self, monkeypatch, tmp_path: Path) -> None:
-        """Test that UV_HELPER_CONFIG env var takes priority."""
+        """Test that UV_SCRIPT_MANAGER_CONFIG env var takes priority."""
         custom_path = tmp_path / "custom-config.toml"
-        monkeypatch.setenv("UV_HELPER_CONFIG", str(custom_path))
+        monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(custom_path))
 
         path = get_config_path()
 
         assert path == custom_path
 
     def test_get_config_path_expands_tilde(self, monkeypatch) -> None:
-        """Test that ~ is expanded in UV_HELPER_CONFIG."""
-        monkeypatch.setenv("UV_HELPER_CONFIG", "~/my-config.toml")
+        """Test that ~ is expanded in UV_SCRIPT_MANAGER_CONFIG."""
+        monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", "~/my-config.toml")
 
         path = get_config_path()
 
@@ -404,7 +404,7 @@ clone_depth = 10
         def mock_copy(path: Path) -> None:
             raise PermissionError("Read-only filesystem")
 
-        monkeypatch.setattr("uv_helper.config._copy_default_config", mock_copy)
+        monkeypatch.setattr("uv_script_manager.config._copy_default_config", mock_copy)
 
         config = load_config(config_file)
 
@@ -417,9 +417,9 @@ clone_depth = 10
         config_file.write_text(
             """
 [global.paths]
-repo_dir = "~/.local/share/uv-helper"
+repo_dir = "~/.local/share/uv-script-manager"
 install_dir = "~/.local/bin"
-state_file = "~/.local/share/uv-helper/state.json"
+state_file = "~/.local/share/uv-script-manager/state.json"
 """,
             encoding="utf-8",
         )

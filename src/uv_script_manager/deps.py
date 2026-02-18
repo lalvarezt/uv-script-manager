@@ -1,4 +1,4 @@
-"""Dependency management for UV-Helper."""
+"""Dependency management."""
 
 import warnings
 from pathlib import Path

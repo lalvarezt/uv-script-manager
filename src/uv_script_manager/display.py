@@ -1,4 +1,4 @@
-"""Display functions for UV-Helper CLI output."""
+"""Display functions for CLI output."""
 
 import os
 from pathlib import Path

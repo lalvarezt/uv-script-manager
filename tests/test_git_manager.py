@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from uv_helper.constants import GIT_SHORT_HASH_LENGTH
-from uv_helper.git_manager import (
+from uv_script_manager.constants import GIT_SHORT_HASH_LENGTH
+from uv_script_manager.git_manager import (
     GitError,
     GitRef,
     checkout_ref,
@@ -201,7 +201,7 @@ class TestGitManagerFallbacks:
                 )
             raise AssertionError(f"Unexpected command: {cmd}")
 
-        monkeypatch.setattr("uv_helper.git_manager.run_command", fake_run_command)
+        monkeypatch.setattr("uv_script_manager.git_manager.run_command", fake_run_command)
 
         assert get_default_branch(tmp_path) == "main"
 
@@ -215,7 +215,7 @@ class TestGitManagerFallbacks:
                 raise subprocess.CalledProcessError(1, cmd, stderr="failed")
             return subprocess.CompletedProcess(cmd, 0, stdout="feature-x\n", stderr="")
 
-        monkeypatch.setattr("uv_helper.git_manager.run_command", fake_run_command)
+        monkeypatch.setattr("uv_script_manager.git_manager.run_command", fake_run_command)
 
         assert get_default_branch(tmp_path) == "feature-x"
 
@@ -231,7 +231,7 @@ class TestGitManagerFallbacks:
                 raise subprocess.CalledProcessError(1, cmd, stderr="failed")
             return subprocess.CompletedProcess(cmd, 0, stdout="\n", stderr="")
 
-        monkeypatch.setattr("uv_helper.git_manager.run_command", fake_run_command)
+        monkeypatch.setattr("uv_script_manager.git_manager.run_command", fake_run_command)
 
         with pytest.raises(GitError, match="detached HEAD state"):
             get_default_branch(tmp_path)
@@ -265,7 +265,7 @@ class TestGitManagerFallbacks:
         def fake_run_command(cmd, cwd=None, check=True):
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-        monkeypatch.setattr("uv_helper.git_manager.run_command", fake_run_command)
+        monkeypatch.setattr("uv_script_manager.git_manager.run_command", fake_run_command)
 
         with pytest.raises(GitError, match="No commit found"):
             get_remote_commit_hash("https://github.com/user/repo", "missing-ref")
@@ -276,7 +276,7 @@ class TestGitManagerFallbacks:
         def raise_file_not_found(cmd, cwd=None, check=True):
             raise FileNotFoundError("git not found")
 
-        monkeypatch.setattr("uv_helper.git_manager.run_command", raise_file_not_found)
+        monkeypatch.setattr("uv_script_manager.git_manager.run_command", raise_file_not_found)
 
         with pytest.raises(GitError, match="Git is not installed"):
             verify_git_available()

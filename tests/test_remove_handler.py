@@ -6,11 +6,11 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from uv_helper.commands.remove import RemoveHandler
-from uv_helper.config import load_config
-from uv_helper.constants import SourceType
-from uv_helper.script_installer import ScriptInstallerError
-from uv_helper.state import ScriptInfo
+from uv_script_manager.commands.remove import RemoveHandler
+from uv_script_manager.config import load_config
+from uv_script_manager.constants import SourceType
+from uv_script_manager.script_installer import ScriptInstallerError
+from uv_script_manager.state import ScriptInfo
 
 
 def _write_config(
@@ -70,7 +70,7 @@ def test_remove_non_force_git_prints_details_and_can_cancel(tmp_path: Path, monk
         )
     )
 
-    monkeypatch.setattr("uv_helper.commands.remove.prompt_confirm", lambda *args, **kwargs: False)
+    monkeypatch.setattr("uv_script_manager.commands.remove.prompt_confirm", lambda *args, **kwargs: False)
 
     handler.remove("tool.py", clean_repo=True, force=False)
 
@@ -113,7 +113,7 @@ def test_remove_non_force_clean_repo_reports_shared_repo_as_kept(tmp_path: Path,
         )
     )
 
-    monkeypatch.setattr("uv_helper.commands.remove.prompt_confirm", lambda *args, **kwargs: False)
+    monkeypatch.setattr("uv_script_manager.commands.remove.prompt_confirm", lambda *args, **kwargs: False)
 
     handler.remove("a.py", clean_repo=True, force=False)
 
@@ -138,7 +138,7 @@ def test_remove_re_raises_script_installer_error(tmp_path: Path, monkeypatch) ->
     )
 
     monkeypatch.setattr(
-        "uv_helper.commands.remove.remove_script_installation",
+        "uv_script_manager.commands.remove.remove_script_installation",
         lambda *args, **kwargs: (_ for _ in ()).throw(ScriptInstallerError("remove failed")),
     )
 

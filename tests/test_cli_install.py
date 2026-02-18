@@ -5,9 +5,9 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from tests.cli_helpers import REQUIRES_UV, _write_config
-from uv_helper.cli import cli
-from uv_helper.constants import SourceType
-from uv_helper.state import StateManager
+from uv_script_manager.cli import cli
+from uv_script_manager.constants import SourceType
+from uv_script_manager.state import StateManager
 
 
 def test_cli_local_install_update_and_remove(tmp_path: Path, monkeypatch) -> None:
@@ -20,13 +20,13 @@ def test_cli_local_install_update_and_remove(tmp_path: Path, monkeypatch) -> Non
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     def _fail_if_git_called() -> None:
         raise AssertionError("git verification should not run")
 
-    monkeypatch.setattr("uv_helper.commands.install.verify_git_available", _fail_if_git_called)
+    monkeypatch.setattr("uv_script_manager.commands.install.verify_git_available", _fail_if_git_called)
 
     dependencies_seen: dict[str, list[str]] = {}
 
@@ -36,10 +36,10 @@ def test_cli_local_install_update_and_remove(tmp_path: Path, monkeypatch) -> Non
         return True
 
     monkeypatch.setattr(
-        "uv_helper.script_installer.process_script_dependencies",
+        "uv_script_manager.script_installer.process_script_dependencies",
         fake_process_dependencies,
     )
-    monkeypatch.setattr("uv_helper.script_installer.verify_script", lambda _: True)
+    monkeypatch.setattr("uv_script_manager.script_installer.verify_script", lambda _: True)
 
     source_dir = tmp_path / "source"
     (source_dir / "pkg").mkdir(parents=True)
@@ -92,9 +92,9 @@ def test_cli_install_with_add_source_package(tmp_path: Path, monkeypatch) -> Non
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.commands.install.verify_git_available", lambda: None)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.commands.install.verify_git_available", lambda: None)
 
     dependencies_seen: dict[str, list[str]] = {}
 
@@ -103,10 +103,10 @@ def test_cli_install_with_add_source_package(tmp_path: Path, monkeypatch) -> Non
         return True
 
     monkeypatch.setattr(
-        "uv_helper.script_installer.process_script_dependencies",
+        "uv_script_manager.script_installer.process_script_dependencies",
         fake_process_dependencies,
     )
-    monkeypatch.setattr("uv_helper.script_installer.verify_script", lambda _: True)
+    monkeypatch.setattr("uv_script_manager.script_installer.verify_script", lambda _: True)
 
     source_dir = tmp_path / "mypackage"
     source_dir.mkdir()
@@ -160,11 +160,11 @@ def test_cli_install_prompts_for_script_when_interactive(tmp_path: Path, monkeyp
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
-    monkeypatch.setattr("uv_helper.cli._is_interactive_terminal", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli._is_interactive_terminal", lambda: True)
     monkeypatch.setattr(
-        "uv_helper.cli._discover_install_script_candidates",
+        "uv_script_manager.cli._discover_install_script_candidates",
         lambda source, clone_depth: ["a.py", "pkg/b.py"],
     )
 
@@ -174,7 +174,7 @@ def test_cli_install_prompts_for_script_when_interactive(tmp_path: Path, monkeyp
         captured["scripts"] = scripts
         return [(scripts[0], True, install_dir / scripts[0])]
 
-    monkeypatch.setattr("uv_helper.cli.InstallHandler.install", fake_install)
+    monkeypatch.setattr("uv_script_manager.cli.InstallHandler.install", fake_install)
 
     result = runner.invoke(
         cli,
@@ -193,8 +193,8 @@ def test_cli_install_invalid_source(tmp_path: Path, monkeypatch) -> None:
     config_path = tmp_path / "config.toml"
     _write_config(config_path, tmp_path / "repos", tmp_path / "bin", tmp_path / "state.json")
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     result = runner.invoke(cli, ["install", "not-a-url-or-path", "--script", "tool.py"])
 
@@ -212,9 +212,9 @@ def test_cli_install_script_not_found(tmp_path: Path, monkeypatch) -> None:
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.commands.install.verify_git_available", lambda: None)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.commands.install.verify_git_available", lambda: None)
 
     source_dir = tmp_path / "source"
     source_dir.mkdir()
@@ -234,8 +234,8 @@ def test_cli_install_add_source_without_copy_parent(tmp_path: Path, monkeypatch)
     config_path = tmp_path / "config.toml"
     _write_config(config_path, tmp_path / "repos", tmp_path / "bin", tmp_path / "state.json")
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     source_dir = tmp_path / "source"
     source_dir.mkdir()
@@ -269,10 +269,10 @@ def test_cli_install_interactive_discovery_failure_exits(tmp_path: Path, monkeyp
     source_dir = tmp_path / "source"
     source_dir.mkdir()
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.cli._is_interactive_terminal", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli._is_interactive_terminal", lambda: True)
     monkeypatch.setattr(
-        "uv_helper.cli._discover_install_script_candidates",
+        "uv_script_manager.cli._discover_install_script_candidates",
         lambda source, clone_depth: (_ for _ in ()).throw(ValueError("clone failed")),
     )
 
@@ -297,9 +297,9 @@ def test_cli_install_interactive_no_candidates_exits(tmp_path: Path, monkeypatch
     source_dir = tmp_path / "source"
     source_dir.mkdir()
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.cli._is_interactive_terminal", lambda: True)
-    monkeypatch.setattr("uv_helper.cli._discover_install_script_candidates", lambda *_args: [])
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli._is_interactive_terminal", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli._discover_install_script_candidates", lambda *_args: [])
 
     result = runner.invoke(
         cli,
@@ -320,7 +320,7 @@ def test_cli_install_rejects_alias_with_multiple_scripts(tmp_path: Path, monkeyp
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     result = runner.invoke(
         cli,
@@ -351,9 +351,9 @@ def test_cli_install_prints_multi_script_next_hint(tmp_path: Path, monkeypatch) 
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
     monkeypatch.setattr(
-        "uv_helper.cli.InstallHandler.install",
+        "uv_script_manager.cli.InstallHandler.install",
         lambda self, source, scripts, request: [
             ("a.py", True, install_dir / "a.py"),
             ("b.py", True, install_dir / "b.py"),
@@ -375,7 +375,7 @@ def test_cli_install_prints_multi_script_next_hint(tmp_path: Path, monkeypatch) 
     )
 
     assert result.exit_code == 0, result.output
-    assert "Next: uv-helper list --verbose" in result.output
+    assert "Next: uv-script-manager list --verbose" in result.output
 
 
 def test_cli_install_reports_no_symlink_location_consistently(tmp_path: Path, monkeypatch) -> None:
@@ -390,9 +390,9 @@ def test_cli_install_reports_no_symlink_location_consistently(tmp_path: Path, mo
     source_dir = tmp_path / "source"
     source_dir.mkdir()
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
     monkeypatch.setattr(
-        "uv_helper.cli.InstallHandler.install",
+        "uv_script_manager.cli.InstallHandler.install",
         lambda self, source, scripts, request: [("tool.py", True, None)],
     )
 

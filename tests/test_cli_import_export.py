@@ -7,9 +7,9 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from tests.cli_helpers import REQUIRES_UV, _write_config
-from uv_helper.cli import cli
-from uv_helper.constants import SourceType
-from uv_helper.state import ScriptInfo, StateManager
+from uv_script_manager.cli import cli
+from uv_script_manager.constants import SourceType
+from uv_script_manager.state import ScriptInfo, StateManager
 
 
 @REQUIRES_UV
@@ -118,7 +118,7 @@ def test_cli_export_no_scripts_and_import_input_validation(tmp_path: Path, monke
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     export_result = runner.invoke(cli, ["--config", str(config_path), "export"])
     assert export_result.exit_code == 0, export_result.output
@@ -161,12 +161,12 @@ def test_cli_import_handles_missing_entries_and_install_errors(tmp_path: Path, m
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     def fail_install(self, source, scripts, request):
         raise ValueError("install failed")
 
-    monkeypatch.setattr("uv_helper.cli.InstallHandler.install", fail_install)
+    monkeypatch.setattr("uv_script_manager.cli.InstallHandler.install", fail_install)
 
     import_file = tmp_path / "import.json"
     import_file.write_text(

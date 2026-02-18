@@ -4,7 +4,7 @@ from pathlib import Path
 
 from tinydb import TinyDB
 
-from uv_helper.migrations import (
+from uv_script_manager.migrations import (
     CURRENT_SCHEMA_VERSION,
     MIGRATIONS,
     Migration001AddSourceType,
@@ -12,7 +12,7 @@ from uv_helper.migrations import (
     Migration003AddRefType,
     MigrationRunner,
 )
-from uv_helper.state import StateManager
+from uv_script_manager.state import StateManager
 
 
 class TestMigration001AddSourceType:

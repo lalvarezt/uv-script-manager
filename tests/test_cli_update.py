@@ -14,9 +14,9 @@ from tests.cli_helpers import (
     _run_git,
     _write_config,
 )
-from uv_helper.cli import cli
-from uv_helper.constants import GIT_SHORT_HASH_LENGTH, SourceType
-from uv_helper.state import ScriptInfo, StateManager
+from uv_script_manager.cli import cli
+from uv_script_manager.constants import GIT_SHORT_HASH_LENGTH, SourceType
+from uv_script_manager.state import ScriptInfo, StateManager
 
 
 def test_cli_update_nonexistent_script(tmp_path: Path, monkeypatch) -> None:
@@ -26,8 +26,8 @@ def test_cli_update_nonexistent_script(tmp_path: Path, monkeypatch) -> None:
     config_path = tmp_path / "config.toml"
     _write_config(config_path, tmp_path / "repos", tmp_path / "bin", tmp_path / "state.json")
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     result = runner.invoke(cli, ["update", "nonexistent.py"])
 
@@ -42,8 +42,8 @@ def test_cli_update_requires_script_name_or_all(tmp_path: Path, monkeypatch) -> 
     config_path = tmp_path / "config.toml"
     _write_config(config_path, tmp_path / "repos", tmp_path / "bin", tmp_path / "state.json")
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     result = runner.invoke(cli, ["update"])
 
@@ -58,8 +58,8 @@ def test_cli_update_rejects_script_name_with_all(tmp_path: Path, monkeypatch) ->
     config_path = tmp_path / "config.toml"
     _write_config(config_path, tmp_path / "repos", tmp_path / "bin", tmp_path / "state.json")
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     result = runner.invoke(cli, ["update", "tool.py", "--all"])
 
@@ -77,8 +77,8 @@ def test_cli_update_all_prints_impact_summary(tmp_path: Path, monkeypatch) -> No
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     state_manager = StateManager(state_file)
     state_manager.add_script(
@@ -107,8 +107,8 @@ def test_cli_update_all_alias_is_hidden_but_still_available(tmp_path: Path, monk
     config_path = tmp_path / "config.toml"
     _write_config(config_path, tmp_path / "repos", tmp_path / "bin", tmp_path / "state.json")
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     help_result = runner.invoke(cli, ["--help"])
     assert help_result.exit_code == 0, help_result.output
@@ -131,8 +131,8 @@ def test_cli_update_all_dry_run_hides_local_changes_when_all_values_are_na(
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     state_manager = StateManager(state_file)
     state_manager.add_script(
@@ -162,11 +162,11 @@ def test_cli_local_update_without_copy_parent_dir(tmp_path: Path, monkeypatch) -
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.commands.update.verify_git_available", lambda: None)
-    monkeypatch.setattr("uv_helper.script_installer.process_script_dependencies", lambda p, d: True)
-    monkeypatch.setattr("uv_helper.script_installer.verify_script", lambda _: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.commands.update.verify_git_available", lambda: None)
+    monkeypatch.setattr("uv_script_manager.script_installer.process_script_dependencies", lambda p, d: True)
+    monkeypatch.setattr("uv_script_manager.script_installer.verify_script", lambda _: True)
 
     source_dir = tmp_path / "source"
     source_dir.mkdir()
@@ -209,11 +209,11 @@ def test_cli_local_update_with_copy_parent_dir(tmp_path: Path, monkeypatch) -> N
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setenv("UV_HELPER_CONFIG", str(config_path))
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.commands.update.verify_git_available", lambda: None)
-    monkeypatch.setattr("uv_helper.script_installer.process_script_dependencies", lambda p, d: True)
-    monkeypatch.setattr("uv_helper.script_installer.verify_script", lambda _: True)
+    monkeypatch.setenv("UV_SCRIPT_MANAGER_CONFIG", str(config_path))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.commands.update.verify_git_available", lambda: None)
+    monkeypatch.setattr("uv_script_manager.script_installer.process_script_dependencies", lambda p, d: True)
+    monkeypatch.setattr("uv_script_manager.script_installer.verify_script", lambda _: True)
 
     source_dir = tmp_path / "mypackage"
     source_dir.mkdir()
@@ -413,7 +413,7 @@ def test_cli_update_json_outputs_parseable_payload(tmp_path: Path, monkeypatch) 
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     state_manager = StateManager(state_file)
     state_manager.add_script(

@@ -1,4 +1,4 @@
-"""Constants used throughout UV-Helper."""
+"""Project constants."""
 
 from enum import Enum
 

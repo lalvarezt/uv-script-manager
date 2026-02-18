@@ -1,4 +1,4 @@
-"""Security tests for UV-Helper.
+"""Security tests.
 
 Tests for path traversal prevention, TOCTOU race conditions, and other security vulnerabilities.
 """
@@ -9,10 +9,10 @@ import pytest
 from click.testing import CliRunner
 
 from tests.cli_helpers import _write_config
-from uv_helper.cli import cli
-from uv_helper.script_installer import ScriptInstallerError, create_symlink
-from uv_helper.state import StateManager
-from uv_helper.utils import safe_rmtree
+from uv_script_manager.cli import cli
+from uv_script_manager.script_installer import ScriptInstallerError, create_symlink
+from uv_script_manager.state import StateManager
+from uv_script_manager.utils import safe_rmtree
 
 
 class TestPathTraversalPrevention:
@@ -155,7 +155,7 @@ class TestValidationCoverage:
         (source_dir / "tool.py").write_text("print('tool')\n", encoding="utf-8")
         (tmp_path / "outside.py").write_text("print('outside')\n", encoding="utf-8")
 
-        monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+        monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
         result = runner.invoke(
             cli,

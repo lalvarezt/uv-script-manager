@@ -1,4 +1,4 @@
-"""Config migration system for UV-Helper configuration files."""
+"""Config migration system for configuration files."""
 
 from .base import CURRENT_SCHEMA_VERSION, MIGRATIONS
 from .migration_001_nested_layout import migration_001_nested_layout

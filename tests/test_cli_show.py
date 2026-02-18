@@ -7,9 +7,9 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from tests.cli_helpers import REQUIRES_GIT, REQUIRES_UV, _run_git, _write_config
-from uv_helper.cli import cli
-from uv_helper.constants import GIT_SHORT_HASH_LENGTH, SourceType
-from uv_helper.state import ScriptInfo, StateManager
+from uv_script_manager.cli import cli
+from uv_script_manager.constants import GIT_SHORT_HASH_LENGTH, SourceType
+from uv_script_manager.state import ScriptInfo, StateManager
 
 
 @REQUIRES_UV
@@ -115,7 +115,7 @@ def test_cli_show_json_outputs_parseable_payload(tmp_path: Path, monkeypatch) ->
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     state_manager = StateManager(state_file)
     state_manager.add_script(

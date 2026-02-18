@@ -1,4 +1,4 @@
-"""Update command handlers for UV-Helper."""
+"""Update command handlers."""
 
 from datetime import datetime
 from pathlib import Path

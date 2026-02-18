@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from uv_helper.constants import SourceType
-from uv_helper.state import ScriptInfo, StateManager
+from uv_script_manager.constants import SourceType
+from uv_script_manager.state import ScriptInfo, StateManager
 
 
 class TestScriptInfo:

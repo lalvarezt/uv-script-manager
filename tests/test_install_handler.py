@@ -6,17 +6,17 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from uv_helper.commands.install import (
+from uv_script_manager.commands.install import (
     InstallationContext,
     InstallHandler,
     InstallRequest,
     ScriptInstallOptions,
 )
-from uv_helper.config import load_config
-from uv_helper.constants import SourceType
-from uv_helper.git_manager import GitRef
-from uv_helper.script_installer import ScriptInstallerError
-from uv_helper.state import ScriptInfo
+from uv_script_manager.config import load_config
+from uv_script_manager.constants import SourceType
+from uv_script_manager.git_manager import GitRef
+from uv_script_manager.script_installer import ScriptInstallerError
+from uv_script_manager.state import ScriptInfo
 
 
 def _write_config(
@@ -76,7 +76,7 @@ def test_install_returns_empty_when_existing_and_user_declines(tmp_path: Path, m
         )
     )
 
-    monkeypatch.setattr("uv_helper.commands.install.prompt_confirm", lambda *args, **kwargs: False)
+    monkeypatch.setattr("uv_script_manager.commands.install.prompt_confirm", lambda *args, **kwargs: False)
 
     request = InstallRequest(
         with_deps=None,
@@ -169,7 +169,7 @@ def test_resolve_dependencies_prints_and_reraises_errors(tmp_path: Path, monkeyp
     def raise_missing(with_deps, repo_path, source_path):
         raise FileNotFoundError("missing requirements")
 
-    monkeypatch.setattr("uv_helper.commands.install.resolve_dependencies", raise_missing)
+    monkeypatch.setattr("uv_script_manager.commands.install.resolve_dependencies", raise_missing)
 
     with pytest.raises(FileNotFoundError, match="missing requirements"):
         handler._resolve_dependencies("requirements.txt", repo_dir, None, verbose=True)
@@ -253,9 +253,9 @@ def test_install_single_script_git_success_warns_and_handles_installer_error(
         alias="short",
     )
 
-    monkeypatch.setattr("uv_helper.commands.install.add_package_source", lambda *args, **kwargs: None)
+    monkeypatch.setattr("uv_script_manager.commands.install.add_package_source", lambda *args, **kwargs: None)
     monkeypatch.setattr(
-        "uv_helper.commands.install.install_script",
+        "uv_script_manager.commands.install.install_script",
         lambda script_path, deps, install_config: (install_dir / "short", "shadows existing command"),
     )
 
@@ -271,7 +271,7 @@ def test_install_single_script_git_success_warns_and_handles_installer_error(
     assert "shadows existing command" in handler.console.export_text()
 
     monkeypatch.setattr(
-        "uv_helper.commands.install.install_script",
+        "uv_script_manager.commands.install.install_script",
         lambda *args, **kwargs: (_ for _ in ()).throw(ScriptInstallerError("install failed")),
     )
     failure = handler._install_single_script("tool.py", context, options)

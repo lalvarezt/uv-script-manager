@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from uv_helper import script_installer
-from uv_helper.constants import SCRIPT_VERIFICATION_TIMEOUT, SourceType
-from uv_helper.state import ScriptInfo, StateManager
+from uv_script_manager import script_installer
+from uv_script_manager.constants import SCRIPT_VERIFICATION_TIMEOUT, SourceType
+from uv_script_manager.state import ScriptInfo, StateManager
 
 
 def test_process_script_dependencies_empty_list_returns_true() -> None:

@@ -1,4 +1,4 @@
-"""Install command handler for UV-Helper."""
+"""Install command handler."""
 
 from dataclasses import dataclass
 from datetime import datetime

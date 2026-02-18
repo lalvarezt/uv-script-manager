@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to UV-Helper will be documented in this file.
+All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -18,13 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `remove --dry-run` to preview removals without mutating state
 - Impact summaries before `update --all` and `remove --clean-repo`
 - `list --full` option to disable table-column truncation and wrap long values
-- Repository config template at `src/uv_helper/config.toml` now copied to `~/.config/uv-helper/config.toml` when missing
+- Repository config template at `src/uv_script_manager/config.toml` now copied to `~/.config/uv-script-manager/config.toml` when missing
 - Config schema metadata (`[meta].schema_version`) and versioned config migrations for legacy layouts
 
 ### Changed
 
 - Configuration structure now uses nested sections (`[global.paths]`, `[global.git]`, `[global.install]`, `[commands.list]`)
-- `uv-helper update --all` is now the canonical bulk-update flow (`update-all` remains as a hidden compatibility alias)
+- `uv-script-manager update --all` is now the canonical bulk-update flow (`update-all` remains as a hidden compatibility alias)
 - List rendering now adapts column widths to terminal size, and `--full` disables truncation for long values
 - Local-change and update status labels now use clearer wording in table and detail views (for example `Needs attention`, `Pinned (...)`, and `Local-only`)
 - `doctor` now includes a script status summary that reuses the same status model as `list`, `show`, and `update`
@@ -158,7 +158,7 @@ installs, direct URL requirements, environment markers, and complex specifiers
 
 ### Added
 
-- Initial public release of UV-Helper with CLI commands to install, list, update, and remove scripts sourced from Git
+- Initial public release with CLI commands to install, list, update, and remove scripts sourced from Git
 repositories lacking packaging metadata.
 - Support for Git refs (branches, tags, commits) and automatic cloning/updating with configurable clone depth.
 - Dependency management via the `--with` flag and automatic detection of `requirements.txt` files.

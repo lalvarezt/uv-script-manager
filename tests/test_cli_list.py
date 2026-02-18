@@ -8,9 +8,9 @@ from click.testing import CliRunner
 from rich.console import Console
 
 from tests.cli_helpers import REQUIRES_GIT, REQUIRES_UV, _run_git, _write_config
-from uv_helper.cli import cli
-from uv_helper.constants import GIT_SHORT_HASH_LENGTH, SourceType
-from uv_helper.state import ScriptInfo, StateManager
+from uv_script_manager.cli import cli
+from uv_script_manager.constants import GIT_SHORT_HASH_LENGTH, SourceType
+from uv_script_manager.state import ScriptInfo, StateManager
 
 
 def test_cli_list_tree_verbose_groups_sources_and_aliases(tmp_path: Path, monkeypatch) -> None:
@@ -22,9 +22,9 @@ def test_cli_list_tree_verbose_groups_sources_and_aliases(tmp_path: Path, monkey
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
     monkeypatch.setattr(
-        "uv_helper.local_changes.get_local_change_state",
+        "uv_script_manager.local_changes.get_local_change_state",
         lambda repo, name: "blocking" if name == "git_tool.py" else "managed",
     )
 
@@ -77,7 +77,7 @@ def test_cli_list_full_disables_truncation(tmp_path: Path, monkeypatch) -> None:
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     state_manager = StateManager(state_file)
     state_manager.add_script(
@@ -118,8 +118,8 @@ def test_cli_list_full_changes_wide_verbose_output_for_long_values(tmp_path: Pat
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.cli.console", Console(width=240))
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.console", Console(width=240))
 
     state_manager = StateManager(state_file)
     state_manager.add_script(
@@ -158,8 +158,11 @@ def test_cli_list_verbose_keeps_status_and_ref_readable_at_medium_width(tmp_path
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.local_changes.get_local_change_state", lambda repo, name: "managed")
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr(
+        "uv_script_manager.local_changes.get_local_change_state",
+        lambda repo, name: "managed",
+    )
 
     state_manager = StateManager(state_file)
     state_manager.add_script(
@@ -206,7 +209,7 @@ def test_cli_list_filters_by_source_ref_and_status(tmp_path: Path, monkeypatch) 
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     state_manager = StateManager(state_file)
     state_manager.add_script(
@@ -278,8 +281,11 @@ def test_cli_list_prints_needs_attention_hint(tmp_path: Path, monkeypatch) -> No
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
-    monkeypatch.setattr("uv_helper.local_changes.get_local_change_state", lambda repo, name: "blocking")
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr(
+        "uv_script_manager.local_changes.get_local_change_state",
+        lambda repo, name: "blocking",
+    )
 
     state_manager = StateManager(state_file)
     state_manager.add_script(
@@ -302,7 +308,7 @@ def test_cli_list_prints_needs_attention_hint(tmp_path: Path, monkeypatch) -> No
 
     assert result.exit_code == 0, result.output
     assert "Some scripts need attention." in result.output
-    assert "Example: uv-helper show tool.py" in result.output
+    assert "Example: uv-script-manager show tool.py" in result.output
 
 
 def test_cli_list_sorts_by_updated_descending(tmp_path: Path, monkeypatch) -> None:
@@ -315,7 +321,7 @@ def test_cli_list_sorts_by_updated_descending(tmp_path: Path, monkeypatch) -> No
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     state_manager = StateManager(state_file)
     state_manager.add_script(
@@ -356,7 +362,7 @@ def test_cli_list_shows_message_when_filters_match_nothing(tmp_path: Path, monke
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     state_manager = StateManager(state_file)
     state_manager.add_script(
@@ -388,7 +394,7 @@ def test_cli_list_json_outputs_parseable_payload(tmp_path: Path, monkeypatch) ->
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     state_manager = StateManager(state_file)
     state_manager.add_script(
@@ -423,7 +429,7 @@ def test_cli_list_json_rejects_tree_mode(tmp_path: Path, monkeypatch) -> None:
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     state_manager = StateManager(state_file)
     state_manager.add_script(

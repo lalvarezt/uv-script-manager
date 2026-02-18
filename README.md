@@ -1,7 +1,7 @@
-# UV-Helper
+# UV Script Manager
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![CI](https://github.com/lalvarezt/uv-helper/workflows/CI/badge.svg)](https://github.com/lalvarezt/uv-helper/actions/workflows/ci.yml)
+[![CI](https://github.com/lalvarezt/uv-script-manager/workflows/CI/badge.svg)](https://github.com/lalvarezt/uv-script-manager/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A CLI tool to install and manage standalone Python scripts from Git repositories or local directories that lack
@@ -9,7 +9,7 @@ A CLI tool to install and manage standalone Python scripts from Git repositories
 
 ## Overview
 
-UV-Helper bridges a critical gap in [uv](https://github.com/astral-sh/uv)'s functionality by enabling you to install and
+UV Script Manager bridges a critical gap in [uv](https://github.com/astral-sh/uv)'s functionality by enabling you to install and
 manage Python scripts directly from Git repositories that don't have proper packaging configuration.
 
 ### The Problem
@@ -26,11 +26,11 @@ cannot directly install these scripts. Users must:
 
 ### The Solution
 
-UV-Helper automates this entire workflow:
+This tool automates this entire workflow:
 
 ```bash
 # Install a script directly from any Git repository
-uv-helper install https://github.com/user/repo --script script.py
+uv-script-manager install https://github.com/user/repo --script script.py
 
 # That's it! The script is now available in your `PATH`
 script.py --help
@@ -61,14 +61,15 @@ command
 ### Using `uv` (Recommended)
 
 ```bash
-uv tool install uv-helper
+uv tool install uv-script-manager
+uv-script-manager --version
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/lalvarezt/uv-helper
-cd uv-helper
+git clone https://github.com/lalvarezt/uv-script-manager
+cd uv-script-manager
 uv pip install -e .
 ```
 
@@ -83,25 +84,25 @@ uv pip install -e .
 
 ```bash
 # Basic installation
-uv-helper install https://github.com/user/repo --script script.py
+uv-script-manager install https://github.com/user/repo --script script.py
 
 # Install from a local directory (no git required)
-uv-helper install ./tools --script app.py
+uv-script-manager install ./tools --script app.py
 
 # Install with dependencies
-uv-helper install https://github.com/user/repo --script script.py --with requests,click
+uv-script-manager install https://github.com/user/repo --script script.py --with requests,click
 
 # List installed scripts
-uv-helper list
+uv-script-manager list
 
 # Update a specific script
-uv-helper update script.py
+uv-script-manager update script.py
 
 # Update all scripts
-uv-helper update --all
+uv-script-manager update --all
 
 # Remove a script
-uv-helper remove script.py
+uv-script-manager remove script.py
 ```
 
 ## Command Reference
@@ -111,14 +112,14 @@ uv-helper remove script.py
 Install Python scripts from a Git repository or local directory.
 
 ```bash
-uv-helper install <source> [--script <script.py> ...] [OPTIONS]
+uv-script-manager install <source> [--script <script.py> ...] [OPTIONS]
 ```
 
 **Arguments:**
 
 - `source`: Git repository URL or local directory path (Git URLs support `@tag`, `@commit`, `#branch` suffixes)
 
-If `--script` is omitted in an interactive terminal, UV-Helper prompts you to select scripts from discovered
+If `--script` is omitted in an interactive terminal, the CLI prompts you to select scripts from discovered
 candidates. In non-interactive environments, `--script` is required.
 
 **Options:**
@@ -140,31 +141,31 @@ sources this requires `--copy-parent-dir`)
 
 ```bash
 # Basic installation from Git
-uv-helper install https://github.com/user/repo --script script.py
+uv-script-manager install https://github.com/user/repo --script script.py
 
 # Install from local directory
-uv-helper install /path/to/scripts --script app.py
+uv-script-manager install /path/to/scripts --script app.py
 
 # Install from local directory with full package copy
-uv-helper install /path/to/mypackage --script cli.py --copy-parent-dir
+uv-script-manager install /path/to/mypackage --script cli.py --copy-parent-dir
 
 # Install with local package as dependency
-uv-helper install https://github.com/user/repo --script app.py --add-source-package=mylib
+uv-script-manager install https://github.com/user/repo --script app.py --add-source-package=mylib
 
 # With inline dependencies (appends to requirements.txt if present)
-uv-helper install https://github.com/user/repo --script tool.py --with requests,click,rich
+uv-script-manager install https://github.com/user/repo --script tool.py --with requests,click,rich
 
 # Multiple scripts
-uv-helper install https://github.com/user/repo \
+uv-script-manager install https://github.com/user/repo \
   --script tool1.py \
   --script tool2.py --force
 
 # Install with custom alias
-uv-helper install https://github.com/user/repo --script long_script_name.py --alias short
+uv-script-manager install https://github.com/user/repo --script long_script_name.py --alias short
 # Now you can run: short --help
 
 # Install without dependencies
-uv-helper install https://github.com/user/repo --script standalone.py --no-deps
+uv-script-manager install https://github.com/user/repo --script standalone.py --no-deps
 ```
 
 ### `list`
@@ -172,7 +173,7 @@ uv-helper install https://github.com/user/repo --script standalone.py --no-deps
 List installed scripts.
 
 ```bash
-uv-helper list [OPTIONS]
+uv-script-manager list [OPTIONS]
 ```
 
 **Options:**
@@ -186,17 +187,17 @@ uv-helper list [OPTIONS]
 - `--sort TEXT`: Sort by `name`, `updated`, `source`, or `status`
 - `--json`: Output list as JSON
 
-When values already fit, `uv-helper list --verbose` and `uv-helper list --verbose --full` can look the same.
+When values already fit, `uv-script-manager list --verbose` and `uv-script-manager list --verbose --full` can look the same.
 
 **Examples:**
 
 ```bash
-uv-helper list
-uv-helper list --verbose
-uv-helper list --verbose --full
-uv-helper list --tree
-uv-helper list --status pinned --sort updated
-uv-helper list --json
+uv-script-manager list
+uv-script-manager list --verbose
+uv-script-manager list --verbose --full
+uv-script-manager list --tree
+uv-script-manager list --status pinned --sort updated
+uv-script-manager list --json
 ```
 
 ### `show`
@@ -204,7 +205,7 @@ uv-helper list --json
 Show detailed information about an installed script.
 
 ```bash
-uv-helper show <script-name> [--json]
+uv-script-manager show <script-name> [--json]
 ```
 
 **Arguments:**
@@ -218,9 +219,9 @@ uv-helper show <script-name> [--json]
 **Examples:**
 
 ```bash
-uv-helper show script.py
-uv-helper show short  # Show by alias
-uv-helper show script.py --json
+uv-script-manager show script.py
+uv-script-manager show short  # Show by alias
+uv-script-manager show script.py --json
 ```
 
 ### `remove`
@@ -228,7 +229,7 @@ uv-helper show script.py --json
 Remove an installed script.
 
 ```bash
-uv-helper remove <script-name> [OPTIONS]
+uv-script-manager remove <script-name> [OPTIONS]
 ```
 
 **Arguments:**
@@ -247,10 +248,10 @@ local installs show the stored source directory.
 **Examples:**
 
 ```bash
-uv-helper remove script.py
-uv-helper remove short  # Remove by alias
-uv-helper remove tool.py --clean-repo --force
-uv-helper remove tool.py --dry-run
+uv-script-manager remove script.py
+uv-script-manager remove short  # Remove by alias
+uv-script-manager remove tool.py --clean-repo --force
+uv-script-manager remove tool.py --dry-run
 ```
 
 ### `update`
@@ -258,7 +259,7 @@ uv-helper remove tool.py --dry-run
 Update an installed script.
 
 ```bash
-uv-helper update [<script-name>] [OPTIONS]
+uv-script-manager update [<script-name>] [OPTIONS]
 ```
 
 **Arguments:**
@@ -277,27 +278,27 @@ uv-helper update [<script-name>] [OPTIONS]
 Aliases are automatically preserved when updating scripts. Scripts installed from tags or commits are treated as pinned
 and will not move to a different ref unless `--force` is used.
 
-When using `--all`, local installations are skipped automatically (reported as `Local-only`) because UV-Helper
+When using `--all`, local installations are skipped automatically (reported as `Local-only`) because the tool
 needs access to the original source directory to refresh them. Pinned refs are reported as `Pinned (<ref>)` unless
 `--force` or `--refresh-deps` is used. Dry-run output includes a `Local changes` column.
 
 **Examples:**
 
 ```bash
-uv-helper update script.py
-uv-helper update short  # Update by alias
-uv-helper update tool.py --force
-uv-helper update --all
-uv-helper update --all --dry-run
-uv-helper update --all --dry-run --json
+uv-script-manager update script.py
+uv-script-manager update short  # Update by alias
+uv-script-manager update tool.py --force
+uv-script-manager update --all
+uv-script-manager update --all --dry-run
+uv-script-manager update --all --dry-run --json
 ```
 
 ### `doctor`
 
-Diagnose and repair UV-Helper installation issues.
+Diagnose and repair installation issues.
 
 ```bash
-uv-helper doctor [OPTIONS]
+uv-script-manager doctor [OPTIONS]
 ```
 
 **Options:**
@@ -311,10 +312,10 @@ Displays configuration paths, verifies system dependencies (`git`, `uv`), and va
 
 ```bash
 # Check system health
-uv-helper doctor
+uv-script-manager doctor
 
 # Check and auto-repair issues
-uv-helper doctor --repair
+uv-script-manager doctor --repair
 ```
 
 ### `browse`
@@ -322,7 +323,7 @@ uv-helper doctor --repair
 List available scripts in a repository before installing.
 
 ```bash
-uv-helper browse <git-url> [OPTIONS]
+uv-script-manager browse <git-url> [OPTIONS]
 ```
 
 **Arguments:**
@@ -340,13 +341,13 @@ fails, it falls back to cloning into a cached directory. For other repositories,
 
 ```bash
 # List installable scripts in a repository
-uv-helper browse https://github.com/user/repo
+uv-script-manager browse https://github.com/user/repo
 
 # List scripts from a specific tag
-uv-helper browse https://github.com/user/repo@v1.0.0
+uv-script-manager browse https://github.com/user/repo@v1.0.0
 
 # Show all Python files including tests
-uv-helper browse https://github.com/user/repo --all
+uv-script-manager browse https://github.com/user/repo --all
 ```
 
 ### `export`
@@ -354,7 +355,7 @@ uv-helper browse https://github.com/user/repo --all
 Export installed scripts to a JSON file for backup or sharing.
 
 ```bash
-uv-helper export [OPTIONS]
+uv-script-manager export [OPTIONS]
 ```
 
 **Options:**
@@ -365,10 +366,10 @@ uv-helper export [OPTIONS]
 
 ```bash
 # Export to stdout
-uv-helper export
+uv-script-manager export
 
 # Export to a file
-uv-helper export -o scripts-backup.json
+uv-script-manager export -o scripts-backup.json
 ```
 
 ### `import`
@@ -376,7 +377,7 @@ uv-helper export -o scripts-backup.json
 Import and reinstall scripts from an export file.
 
 ```bash
-uv-helper import <file> [OPTIONS]
+uv-script-manager import <file> [OPTIONS]
 ```
 
 **Arguments:**
@@ -392,13 +393,13 @@ uv-helper import <file> [OPTIONS]
 
 ```bash
 # Preview what would be imported
-uv-helper import scripts-backup.json --dry-run
+uv-script-manager import scripts-backup.json --dry-run
 
 # Import scripts from backup
-uv-helper import scripts-backup.json
+uv-script-manager import scripts-backup.json
 
 # Force overwrite existing scripts
-uv-helper import scripts-backup.json --force
+uv-script-manager import scripts-backup.json --force
 ```
 
 ### `completion`
@@ -406,7 +407,7 @@ uv-helper import scripts-backup.json --force
 Generate shell completion scripts.
 
 ```bash
-uv-helper completion <shell>
+uv-script-manager completion <shell>
 ```
 
 **Arguments:**
@@ -420,19 +421,19 @@ commands like `show`, `remove`, and `update`.
 
 ```bash
 # Fish shell
-uv-helper completion fish > ~/.config/fish/completions/uv-helper.fish
+uv-script-manager completion fish > ~/.config/fish/completions/uv-script-manager.fish
 
 # Bash
-uv-helper completion bash > ~/.local/share/bash-completion/completions/uv-helper
+uv-script-manager completion bash > ~/.local/share/bash-completion/completions/uv-script-manager
 
 # Zsh
-uv-helper completion zsh > ~/.zfunc/_uv-helper
+uv-script-manager completion zsh > ~/.zfunc/_uv-script-manager
 # Then add: fpath+=~/.zfunc && autoload -Uz compinit && compinit
 ```
 
 ## Configuration
 
-UV-Helper uses TOML configuration files. The default location is `~/.config/uv-helper/config.toml`.
+Configuration uses TOML files. The default location is `~/.config/uv-script-manager/config.toml`.
 
 ### Configuration File
 
@@ -442,13 +443,13 @@ schema_version = 1
 
 [global.paths]
 # Where to clone repositories
-repo_dir = "~/.local/share/uv-helper"
+repo_dir = "~/.local/share/uv-script-manager"
 
 # Where to create symlinks
 install_dir = "~/.local/bin"
 
 # Where to store state file
-state_file = "~/.local/share/uv-helper/state.json"
+state_file = "~/.local/share/uv-script-manager/state.json"
 
 [global.git]
 # Git clone depth (1 for shallow clone)
@@ -477,25 +478,25 @@ You can specify a custom configuration file:
 
 ```bash
 # Via command-line flag
-uv-helper --config /path/to/config.toml install ...
+uv-script-manager --config /path/to/config.toml install ...
 
 # Via environment variable
-export UV_HELPER_CONFIG=/path/to/config.toml
-uv-helper install ...
+export UV_SCRIPT_MANAGER_CONFIG=/path/to/config.toml
+uv-script-manager install ...
 ```
 
 ### Configuration Priority
 
 1. `--config` CLI option (selects the config file explicitly)
-2. `UV_HELPER_CONFIG` environment variable (when `--config` is not provided)
-3. Default config path (`~/.config/uv-helper/config.toml`)
-4. Defaults sourced from `src/uv_helper/config.toml`
+2. `UV_SCRIPT_MANAGER_CONFIG` environment variable (when `--config` is not provided)
+3. Default config path (`~/.config/uv-script-manager/config.toml`)
+4. Defaults sourced from `src/uv_script_manager/config.toml`
 
 At runtime, command options such as `--install-dir` and `--exact/--no-exact` override config values for that command.
 
 ## How It Works
 
-UV-Helper automates the following workflow:
+The tool automates the following workflow:
 
 **For Git sources:**
 
@@ -517,7 +518,7 @@ UV-Helper automates the following workflow:
 
 ### Shebang Transformation
 
-UV-Helper modifies script shebangs to use `uv`'s script runner with the `--exact` flag:
+It modifies script shebangs to use `uv`'s script runner with the `--exact` flag:
 
 ```python
 #!/usr/bin/env -S uv run --exact --script
@@ -535,8 +536,8 @@ This behavior can be controlled via the `use_exact_flag` configuration option or
 
 ```bash
 # Clone repository
-git clone https://github.com/lalvarezt/uv-helper
-cd uv-helper
+git clone https://github.com/lalvarezt/uv-script-manager
+cd uv-script-manager
 
 # Setup local virtual environment with dev dependencies
 uv sync --group dev

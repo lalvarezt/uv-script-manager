@@ -1,4 +1,4 @@
-"""CLI interface for UV-Helper."""
+"""CLI interface."""
 
 import json
 import os
@@ -9,7 +9,7 @@ from typing import cast
 
 # Runtime version check - must be before other imports
 if sys.version_info < (3, 11):
-    print("Error: UV-Helper requires Python 3.11 or higher", file=sys.stderr)
+    print("Error: uv-script-manager requires Python 3.11 or higher", file=sys.stderr)
     version = f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     print(f"Current version: {version}", file=sys.stderr)
     print("\nPlease upgrade your Python installation:", file=sys.stderr)
@@ -197,7 +197,7 @@ def _discover_install_script_candidates(source: str, clone_depth: int) -> list[s
 
     if is_git_url(source):
         parsed = parse_git_url(source)
-        with tempfile.TemporaryDirectory(prefix="uv-helper-install-") as temp_dir:
+        with tempfile.TemporaryDirectory(prefix="uv-script-manager-install-") as temp_dir:
             repo_path = Path(temp_dir) / "repo"
             try:
                 clone_or_update(
@@ -466,7 +466,8 @@ def _print_needs_attention_hint(scripts) -> None:
         return
 
     console.print(
-        f"[#ff8c00]Some scripts need attention.[/] [dim]Example: uv-helper show {needs_attention[0]}[/dim]"
+        "[#ff8c00]Some scripts need attention.[/] "
+        f"[dim]Example: uv-script-manager show {needs_attention[0]}[/dim]"
     )
 
 
@@ -479,7 +480,7 @@ def _print_needs_attention_hint(scripts) -> None:
 )
 @click.pass_context
 def cli(ctx: click.Context, config: Path | None) -> None:
-    """UV-Helper: Install and manage Python scripts from Git repositories or local directories."""
+    """Install and manage Python scripts from Git repositories or local directories."""
     ctx.ensure_object(dict)
 
     # Load configuration
@@ -571,46 +572,46 @@ def install(
 
         \b
         # Install from Git repository
-        uv-helper install https://github.com/user/repo --script myscript.py
+        uv-script-manager install https://github.com/user/repo --script myscript.py
 
         \b
         # Install from local directory
-        uv-helper install /path/to/scripts --script app.py
+        uv-script-manager install /path/to/scripts --script app.py
 
         \b
         # Install from local directory, copying entire parent directory
-        uv-helper install /path/to/pyhprof --script spring_heapdumper.py --copy-parent-dir
+        uv-script-manager install /path/to/pyhprof --script spring_heapdumper.py --copy-parent-dir
 
         \b
         # Install with local package as dependency
-        uv-helper install /path/to/pyhprof --script spring_heapdumper.py \\
+        uv-script-manager install /path/to/pyhprof --script spring_heapdumper.py \\
             --copy-parent-dir --add-source-package=pyhprof
 
         \b
         # Install from Git repo and add as package dependency
-        uv-helper install https://github.com/user/repo --script app.py \\
+        uv-script-manager install https://github.com/user/repo --script app.py \\
             --add-source-package=mypackage
 
         \b
         # Install multiple scripts
-        uv-helper install https://github.com/user/repo --script script1.py --script script2.py
+        uv-script-manager install https://github.com/user/repo --script script1.py --script script2.py
 
         \b
         # Install with dependencies from requirements.txt
-        uv-helper install https://github.com/user/repo --script app.py --with requirements.txt
+        uv-script-manager install https://github.com/user/repo --script app.py --with requirements.txt
 
         \b
         # Install from a specific branch or tag
-        uv-helper install https://github.com/user/repo#dev --script app.py
-        uv-helper install https://github.com/user/repo@v1.0.0 --script app.py
+        uv-script-manager install https://github.com/user/repo#dev --script app.py
+        uv-script-manager install https://github.com/user/repo@v1.0.0 --script app.py
 
         \b
         # Install with custom alias
-        uv-helper install https://github.com/user/repo --script long_script_name.py --alias short
+        uv-script-manager install https://github.com/user/repo --script long_script_name.py --alias short
 
         \b
         # Install without any dependencies
-        uv-helper install https://github.com/user/repo --script app.py --no-deps
+        uv-script-manager install https://github.com/user/repo --script app.py --no-deps
     """
     config = ctx.obj["config"]
 
@@ -627,8 +628,8 @@ def install(
         if not _is_interactive_terminal():
             console.print("[red]Error:[/red] --script is required in non-interactive mode.")
             console.print(
-                "Use [cyan]uv-helper install <source> --script <script.py>[/cyan], "
-                "or run [cyan]uv-helper browse <source>[/cyan] first."
+                "Use [cyan]uv-script-manager install <source> --script <script.py>[/cyan], "
+                "or run [cyan]uv-script-manager browse <source>[/cyan] first."
             )
             sys.exit(1)
 
@@ -640,7 +641,9 @@ def install(
 
         if not candidates:
             console.print("[red]Error:[/red] No installable Python scripts found in source.")
-            console.print("Try [cyan]uv-helper browse <source> --all[/cyan] to inspect all Python files.")
+            console.print(
+                "Try [cyan]uv-script-manager browse <source> --all[/cyan] to inspect all Python files."
+            )
             sys.exit(1)
 
         selected_scripts = _prompt_for_script_selection(candidates)
@@ -677,9 +680,11 @@ def install(
 
         if installed_scripts:
             if len(installed_scripts) == 1:
-                console.print(f"[dim]Next: uv-helper show {installed_scripts[0]} | uv-helper list[/dim]")
+                console.print(
+                    f"[dim]Next: uv-script-manager show {installed_scripts[0]} | uv-script-manager list[/dim]"
+                )
             else:
-                console.print("[dim]Next: uv-helper list --verbose[/dim]")
+                console.print("[dim]Next: uv-script-manager list --verbose[/dim]")
     except (ValueError, FileNotFoundError, NotADirectoryError):
         sys.exit(1)
 
@@ -735,27 +740,27 @@ def list_scripts(
 
         \b
         # List all scripts in table format (default)
-        uv-helper list
+        uv-script-manager list
 
         \b
         # List with verbose output showing commit hash, local changes, and dependencies
-        uv-helper list -v
+        uv-script-manager list -v
 
         \b
         # Display scripts grouped by source in a tree view
-        uv-helper list --tree
+        uv-script-manager list --tree
 
         \b
         # Tree view with verbose details
-        uv-helper list --tree -v
+        uv-script-manager list --tree -v
 
         \b
         # Show full values without truncation
-        uv-helper list --verbose --full
+        uv-script-manager list --verbose --full
 
         \b
         # Filter and sort scripts
-        uv-helper list --status pinned --sort updated
+        uv-script-manager list --status pinned --sort updated
     """
     from rich.tree import Tree
 
@@ -841,11 +846,11 @@ def show(ctx: click.Context, script_name: str, json_output: bool) -> None:
 
         \b
         # Show details for a script
-        uv-helper show myscript
+        uv-script-manager show myscript
 
         \b
         # Show details using alias
-        uv-helper show myalias
+        uv-script-manager show myalias
     """
     config = ctx.obj["config"]
     state_manager = StateManager(config.state_file)
@@ -887,19 +892,19 @@ def remove(
 
         \b
         # Remove a script (keeps repository for other scripts)
-        uv-helper remove myscript
+        uv-script-manager remove myscript
 
         \b
         # Remove script and clean up repository if unused
-        uv-helper remove myscript --clean-repo
+        uv-script-manager remove myscript --clean-repo
 
         \b
         # Skip confirmation prompt
-        uv-helper remove myscript --force
+        uv-script-manager remove myscript --force
 
         \b
         # Preview removal without applying changes
-        uv-helper remove myscript --dry-run
+        uv-script-manager remove myscript --dry-run
     """
     config = ctx.obj["config"]
     state_manager = StateManager(config.state_file)
@@ -934,7 +939,7 @@ def remove(
 
     try:
         handler.remove(script_name, clean_repo, force)
-        console.print("[dim]Next: uv-helper list[/dim]")
+        console.print("[dim]Next: uv-script-manager list[/dim]")
     except (ValueError, ScriptInstallerError):
         sys.exit(1)
 
@@ -977,35 +982,37 @@ def update(
 
         \b
         # Update a script if newer version available
-        uv-helper update myscript
+        uv-script-manager update myscript
 
         \b
         # Update all installed scripts
-        uv-helper update --all
+        uv-script-manager update --all
 
         \b
         # Force reinstall even if already up-to-date
-        uv-helper update myscript --force
+        uv-script-manager update myscript --force
 
         \b
         # Update and re-resolve dependencies from requirements.txt
-        uv-helper update myscript --refresh-deps
+        uv-script-manager update myscript --refresh-deps
 
         \b
         # Preview bulk updates without changing anything
-        uv-helper update --all --dry-run
+        uv-script-manager update --all --dry-run
     """
     if all_scripts and script_name:
         console.print("[red]Error:[/red] Cannot use SCRIPT_NAME and --all together.")
         console.print(
-            "Use [cyan]uv-helper update <script-name>[/cyan] or [cyan]uv-helper update --all[/cyan]."
+            "Use [cyan]uv-script-manager update <script-name>[/cyan] "
+            "or [cyan]uv-script-manager update --all[/cyan]."
         )
         sys.exit(1)
 
     if not all_scripts and not script_name:
         console.print("[red]Error:[/red] Missing SCRIPT_NAME or --all.")
         console.print(
-            "Use [cyan]uv-helper update <script-name>[/cyan] or [cyan]uv-helper update --all[/cyan]."
+            "Use [cyan]uv-script-manager update <script-name>[/cyan] "
+            "or [cyan]uv-script-manager update --all[/cyan]."
         )
         sys.exit(1)
 
@@ -1038,10 +1045,10 @@ def update(
             if dry_run:
                 console.print("[dim]Re-run without --dry-run to apply updates.[/dim]")
             elif all_scripts:
-                console.print("[dim]Next: uv-helper list --verbose[/dim]")
+                console.print("[dim]Next: uv-script-manager list --verbose[/dim]")
             else:
                 assert script_name is not None
-                console.print(f"[dim]Next: uv-helper show {script_name}[/dim]")
+                console.print(f"[dim]Next: uv-script-manager show {script_name}[/dim]")
     except (ValueError, FileNotFoundError, ScriptInstallerError):
         sys.exit(1)
 
@@ -1095,17 +1102,17 @@ def export_scripts(ctx: click.Context, output: Path | None) -> None:
 
     Creates a JSON file containing all installed scripts with their
     source URLs, refs, and installation options. This file can be
-    used with 'uv-helper import' to reinstall scripts on another machine.
+    used with 'uv-script-manager import' to reinstall scripts on another machine.
 
     Examples:
 
         \b
         # Export to stdout
-        uv-helper export
+        uv-script-manager export
 
         \b
         # Export to a file
-        uv-helper export -o scripts.json
+        uv-script-manager export -o scripts.json
     """
     import json
 
@@ -1171,7 +1178,7 @@ def import_scripts(ctx: click.Context, file: Path, force: bool, dry_run: bool) -
     """
     Import and install scripts from an export file.
 
-    Reads a JSON file created by 'uv-helper export' and installs
+    Reads a JSON file created by 'uv-script-manager export' and installs
     all scripts defined in it. Useful for setting up a new machine
     or sharing script configurations.
 
@@ -1179,15 +1186,15 @@ def import_scripts(ctx: click.Context, file: Path, force: bool, dry_run: bool) -
 
         \b
         # Import scripts from a file
-        uv-helper import scripts.json
+        uv-script-manager import scripts.json
 
         \b
         # Preview what would be installed
-        uv-helper import scripts.json --dry-run
+        uv-script-manager import scripts.json --dry-run
 
         \b
         # Force overwrite existing scripts
-        uv-helper import scripts.json --force
+        uv-script-manager import scripts.json --force
     """
     import json
 
@@ -1293,15 +1300,15 @@ def browse(ctx: click.Context, git_url: str, show_all: bool) -> None:
 
         \b
         # Browse scripts in a repository
-        uv-helper browse https://github.com/user/repo
+        uv-script-manager browse https://github.com/user/repo
 
         \b
         # Browse a specific branch
-        uv-helper browse https://github.com/user/repo#develop
+        uv-script-manager browse https://github.com/user/repo#develop
 
         \b
         # Show all .py files including __init__.py, setup.py
-        uv-helper browse https://github.com/user/repo --all
+        uv-script-manager browse https://github.com/user/repo --all
     """
     import shutil
     import subprocess
@@ -1359,7 +1366,9 @@ def browse(ctx: click.Context, git_url: str, show_all: bool) -> None:
         installable_files = [path for path in py_files if _is_install_candidate(path, show_all=False)]
         if installable_files:
             example_script = min(installable_files, key=_install_hint_sort_key)
-            console.print(f"\n[dim]Install with: uv-helper install {git_url} -s {example_script}[/dim]")
+            console.print(
+                f"\n[dim]Install with: uv-script-manager install {git_url} -s {example_script}[/dim]"
+            )
         elif show_all:
             console.print(
                 "\n[dim]No candidate scripts in this list. "
@@ -1429,7 +1438,7 @@ def browse(ctx: click.Context, git_url: str, show_all: bool) -> None:
     # Fallback: clone/update to cached directory in temp
     import tempfile
 
-    browse_cache_dir = Path(tempfile.gettempdir()) / "uv-helper-browse"
+    browse_cache_dir = Path(tempfile.gettempdir()) / "uv-script-manager-browse"
     browse_cache_dir.mkdir(exist_ok=True)
 
     repo_dir_name = get_repo_name_from_url(parsed.base_url)
@@ -1472,11 +1481,11 @@ def doctor(ctx: click.Context, repair: bool) -> None:
 
         \b
         # Run diagnostics
-        uv-helper doctor
+        uv-script-manager doctor
 
         \b
         # Run diagnostics and repair issues
-        uv-helper doctor --repair
+        uv-script-manager doctor --repair
     """
     from rich.table import Table
 
@@ -1566,7 +1575,7 @@ def doctor(ctx: click.Context, repair: bool) -> None:
                 removed_count = report["missing_scripts_removed"]
                 console.print(f"  Removed {removed_count} missing script(s) from database")
         else:
-            console.print("\n[dim]Run 'uv-helper doctor --repair' to fix these issues[/dim]")
+            console.print("\n[dim]Run 'uv-script-manager doctor --repair' to fix these issues[/dim]")
 
     # Script status section
     console.print("\n[bold]Script Status[/bold]")
@@ -1607,21 +1616,21 @@ def completion(shell: str) -> None:
 
         \b
         # Fish shell
-        uv-helper completion fish > ~/.config/fish/completions/uv-helper.fish
+        uv-script-manager completion fish > ~/.config/fish/completions/uv-script-manager.fish
 
         \b
         # Bash shell
-        uv-helper completion bash > ~/.local/share/bash-completion/completions/uv-helper
+        uv-script-manager completion bash > ~/.local/share/bash-completion/completions/uv-script-manager
 
         \b
         # Zsh shell
-        uv-helper completion zsh > ~/.zfunc/_uv-helper
+        uv-script-manager completion zsh > ~/.zfunc/_uv-script-manager
         # Then add: fpath+=~/.zfunc && autoload -Uz compinit && compinit
     """
     import subprocess
 
     # Use click's built-in completion generation
-    env_var = "_UV_HELPER_COMPLETE"
+    env_var = "_UV_SCRIPT_MANAGER_COMPLETE"
     shell_map = {
         "fish": "fish_source",
         "bash": "bash_source",
@@ -1629,7 +1638,7 @@ def completion(shell: str) -> None:
     }
 
     result = subprocess.run(
-        ["uv-helper"],
+        ["uv-script-manager"],
         env={**dict(os.environ), env_var: shell_map[shell]},
         capture_output=True,
         text=True,

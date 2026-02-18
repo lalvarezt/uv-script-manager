@@ -8,11 +8,11 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from tests.cli_helpers import REQUIRES_UV, _write_config
-from uv_helper.cli import cli
-from uv_helper.constants import SourceType
-from uv_helper.git_manager import GitError
-from uv_helper.script_installer import ScriptInstallerError
-from uv_helper.state import ScriptInfo, StateManager
+from uv_script_manager.cli import cli
+from uv_script_manager.constants import SourceType
+from uv_script_manager.git_manager import GitError
+from uv_script_manager.script_installer import ScriptInstallerError
+from uv_script_manager.state import ScriptInfo, StateManager
 
 
 @REQUIRES_UV
@@ -87,7 +87,7 @@ def test_cli_browse_uses_github_api_when_available(tmp_path: Path, monkeypatch) 
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
 
     real_which = shutil.which
 
@@ -113,7 +113,7 @@ def test_cli_browse_uses_github_api_when_available(tmp_path: Path, monkeypatch) 
     def fail_clone_or_update(*args, **kwargs):
         raise AssertionError("clone fallback should not run when GitHub API succeeds")
 
-    monkeypatch.setattr("uv_helper.git_manager.clone_or_update", fail_clone_or_update)
+    monkeypatch.setattr("uv_script_manager.git_manager.clone_or_update", fail_clone_or_update)
 
     result = runner.invoke(
         cli,
@@ -141,7 +141,7 @@ def test_cli_browse_clone_fallback_respects_all_flag(tmp_path: Path, monkeypatch
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
     monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
 
     real_which = shutil.which
@@ -163,7 +163,7 @@ def test_cli_browse_clone_fallback_respects_all_flag(tmp_path: Path, monkeypatch
         (repo_path / ".hidden").mkdir(exist_ok=True)
         (repo_path / ".hidden" / "secret.py").write_text("print('secret')\n", encoding="utf-8")
 
-    monkeypatch.setattr("uv_helper.git_manager.clone_or_update", fake_clone_or_update)
+    monkeypatch.setattr("uv_script_manager.git_manager.clone_or_update", fake_clone_or_update)
 
     default_result = runner.invoke(
         cli,
@@ -202,7 +202,7 @@ def test_cli_browse_prefers_better_install_hint_over_docs_file(tmp_path: Path, m
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
     monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
 
     real_which = shutil.which
@@ -221,7 +221,7 @@ def test_cli_browse_prefers_better_install_hint_over_docs_file(tmp_path: Path, m
         (repo_path / "src").mkdir(exist_ok=True)
         (repo_path / "src" / "cli.py").write_text("print('cli')\n", encoding="utf-8")
 
-    monkeypatch.setattr("uv_helper.git_manager.clone_or_update", fake_clone_or_update)
+    monkeypatch.setattr("uv_script_manager.git_manager.clone_or_update", fake_clone_or_update)
 
     result = runner.invoke(
         cli,
@@ -230,7 +230,8 @@ def test_cli_browse_prefers_better_install_hint_over_docs_file(tmp_path: Path, m
 
     assert result.exit_code == 0, result.output
     assert "2 candidate script(s) found" in result.output
-    assert "Install with: uv-helper install https://github.com/acme/repo -s src/cli.py" in result.output
+    assert "Install with: uv-script-manager install https://github.com/acme/repo -s" in result.output
+    assert "src/cli.py" in result.output
 
 
 def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeypatch) -> None:
@@ -244,7 +245,7 @@ def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeyp
     config_path = tmp_path / "config.toml"
     _write_config(config_path, repo_dir, install_dir, state_file)
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", lambda: True)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: True)
     monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
 
     real_which = shutil.which
@@ -267,7 +268,7 @@ def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeyp
         (repo_path / "tests").mkdir(exist_ok=True)
         (repo_path / "tests" / "test_app.py").write_text("print('x')\n", encoding="utf-8")
 
-    monkeypatch.setattr("uv_helper.git_manager.clone_or_update", fallback_clone)
+    monkeypatch.setattr("uv_script_manager.git_manager.clone_or_update", fallback_clone)
 
     browse_no_scripts = runner.invoke(
         cli,
@@ -286,7 +287,7 @@ def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeyp
     assert "No candidate scripts in this list" in browse_all.output
 
     monkeypatch.setattr(
-        "uv_helper.git_manager.clone_or_update",
+        "uv_script_manager.git_manager.clone_or_update",
         lambda *args, **kwargs: (_ for _ in ()).throw(GitError("clone failed")),
     )
     browse_error = runner.invoke(
@@ -304,7 +305,7 @@ def test_cli_browse_error_branches_and_doctor_uv_missing(tmp_path: Path, monkeyp
             return True
         raise ScriptInstallerError("uv missing")
 
-    monkeypatch.setattr("uv_helper.cli.verify_uv_available", verify_uv_sequence)
+    monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", verify_uv_sequence)
     doctor_result = runner.invoke(cli, ["--config", str(config_path), "doctor"])
     assert doctor_result.exit_code == 0, doctor_result.output
     assert "uv (Python package manager):" in doctor_result.output

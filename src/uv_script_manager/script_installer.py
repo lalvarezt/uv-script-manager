@@ -1,4 +1,4 @@
-"""Script installation and processing for UV-Helper."""
+"""Script installation and processing."""
 
 import shutil
 import subprocess

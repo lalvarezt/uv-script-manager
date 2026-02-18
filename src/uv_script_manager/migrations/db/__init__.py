@@ -1,4 +1,4 @@
-"""Database migration system for UV-Helper state."""
+"""Database migration system for state."""
 
 from .base import CURRENT_SCHEMA_VERSION, Migration
 from .migration_001_add_source_type import Migration001AddSourceType
