@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-02-18
+
 ### Added
 
 - Interactive script selection for `install` when `--script` is omitted in an interactive terminal
@@ -35,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependency parsing now suppresses known `requirements-parser` warning noise for ignored constraints and unsupported private-repo directives
 - `list` now prints a compact follow-up hint when scripts need attention, and `show` now includes actionable reason/inspect guidance
 - Script-name shell completion now honors `--config` from parent command context and from `COMP_WORDS` parsing
+- `browse` now uses clearer candidate-file wording, provides a better install hint target, and gives clearer guidance when `--all` returns only non-candidate files
+- `remove` prompts and dry-run output now use clearer symlink/repository messaging, including accurate shared-repo outcomes for `--clean-repo`
 
 ## [1.4.0] - 2026-02-06
 
