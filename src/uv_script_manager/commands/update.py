@@ -1,5 +1,6 @@
 """Update command handlers."""
 
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -29,6 +30,7 @@ from ..update_status import (
     make_error_status,
     make_pinned_status,
 )
+from ..url_source import URLSourceError, download_url_script
 from ..utils import copy_directory_contents, copy_script_file, handle_git_error, progress_spinner
 
 
@@ -79,6 +81,8 @@ class UpdateHandler:
         if dry_run:
             if script_info.source_type == SourceType.LOCAL:
                 return self._local_skip_dry_run_result(display_name)
+            if script_info.source_type == SourceType.URL:
+                return self._build_url_dry_run_result(script_info, force, refresh_deps)
 
             handle_git_error(self.console, lambda: verify_git_available())
             return self._build_git_dry_run_result(script_info, force, refresh_deps)
@@ -86,6 +90,8 @@ class UpdateHandler:
         # Branch based on source type (use actual script name from state, not user input)
         if script_info.source_type == SourceType.LOCAL:
             return self._update_local_script(script_info, exact, refresh_deps)
+        if script_info.source_type == SourceType.URL:
+            return self._update_url_script(script_info, force, exact, refresh_deps)
         else:
             return self._update_git_script(script_info, force, exact, refresh_deps)
 
@@ -123,7 +129,7 @@ class UpdateHandler:
             else:
                 self.console.print(f"Updating {len(scripts)} script(s)...")
 
-        results = []
+        results: list[tuple[str, str] | tuple[str, str, str]] = []
         git_checked = False
 
         for script_info in scripts:
@@ -135,6 +141,24 @@ class UpdateHandler:
                     results.append(self._local_skip_dry_run_result(display_name))
                 else:
                     results.append(self._local_skip_result(display_name))
+                continue
+
+            if script_info.source_type == SourceType.URL:
+                try:
+                    if dry_run:
+                        results.append(self._build_url_dry_run_result(script_info, force, refresh_deps))
+                    else:
+                        results.append(
+                            (
+                                display_name,
+                                self._update_url_script_internal(script_info, force, exact, refresh_deps),
+                            )
+                        )
+                except (OSError, URLSourceError, ScriptInstallerError) as e:
+                    if dry_run:
+                        results.append((display_name, make_error_status(str(e)), "N/A"))
+                    else:
+                        results.append((display_name, make_error_status(str(e))))
                 continue
 
             # Verify git available once
@@ -155,6 +179,69 @@ class UpdateHandler:
                     results.append((display_name, make_error_status(str(e))))
 
         return results
+
+    def _update_url_script(
+        self,
+        script_info: ScriptInfo,
+        force: bool,
+        exact: bool | None,
+        refresh_deps: bool = False,
+    ) -> tuple[str, str]:
+        """Update a direct URL script."""
+        try:
+            status = self._update_url_script_internal(script_info, force, exact, refresh_deps)
+            return (script_info.display_name, status)
+        except (OSError, URLSourceError, ScriptInstallerError) as e:
+            return (script_info.display_name, make_error_status(str(e)))
+
+    def _update_url_script_internal(
+        self,
+        script_info: ScriptInfo,
+        force: bool,
+        exact: bool | None,
+        refresh_deps: bool = False,
+    ) -> str:
+        """Download, compare, and safely reinstall a direct URL script."""
+        if not script_info.source_url:
+            raise URLSourceError("URL source is missing its source URL")
+
+        downloaded = download_url_script(script_info.source_url, script_info.repo_path)
+        target_path = script_info.repo_path / script_info.name
+        backup_path = script_info.repo_path / f".{script_info.name}.uvsm-backup"
+
+        if downloaded.filename != script_info.name:
+            downloaded.path.unlink(missing_ok=True)
+            raise URLSourceError(f"URL filename changed from '{script_info.name}' to '{downloaded.filename}'")
+
+        if downloaded.source_hash == script_info.source_hash and not force and not refresh_deps:
+            downloaded.path.unlink(missing_ok=True)
+            return UPDATE_STATUS_UP_TO_DATE
+
+        dependencies = self._resolve_dependencies_for_update(
+            script_info.dependencies,
+            script_info.repo_path,
+            refresh_deps,
+        )
+        script_alias = self._get_script_alias(script_info, script_info.name)
+        old_source_hash = script_info.source_hash
+
+        try:
+            if target_path.exists():
+                os.replace(target_path, backup_path)
+            os.replace(downloaded.path, target_path)
+            symlink_path = self._reinstall_script(target_path, dependencies, exact, script_alias)
+            script_info.source_hash = downloaded.source_hash
+            self._persist_script_update(script_info, dependencies, symlink_path)
+        except Exception:
+            script_info.source_hash = old_source_hash
+            target_path.unlink(missing_ok=True)
+            if backup_path.exists():
+                os.replace(backup_path, target_path)
+            downloaded.path.unlink(missing_ok=True)
+            raise
+
+        backup_path.unlink(missing_ok=True)
+        return UPDATE_STATUS_UPDATED
 
     def _update_local_script(
         self, script_info: ScriptInfo, exact: bool | None, refresh_deps: bool = False
@@ -403,3 +490,27 @@ class UpdateHandler:
         )
         local_changes = format_local_change_label(local_change_state)
         return (script_info.display_name, status, local_changes)
+
+    def _build_url_dry_run_result(
+        self,
+        script_info: ScriptInfo,
+        force: bool,
+        refresh_deps: bool,
+    ) -> tuple[str, str, str]:
+        """Build dry-run update result for a direct URL script."""
+        if not script_info.source_url:
+            raise URLSourceError("URL source is missing its source URL")
+        downloaded = download_url_script(script_info.source_url, script_info.repo_path)
+        try:
+            if downloaded.filename != script_info.name:
+                raise URLSourceError(
+                    f"URL filename changed from '{script_info.name}' to '{downloaded.filename}'"
+                )
+            status = (
+                UPDATE_STATUS_WOULD_UPDATE
+                if force or refresh_deps or downloaded.source_hash != script_info.source_hash
+                else UPDATE_STATUS_UP_TO_DATE
+            )
+            return (script_info.display_name, status, "N/A")
+        finally:
+            downloaded.path.unlink(missing_ok=True)

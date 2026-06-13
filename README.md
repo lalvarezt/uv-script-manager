@@ -4,7 +4,7 @@
 [![CI](https://github.com/lalvarezt/uv-script-manager/workflows/CI/badge.svg)](https://github.com/lalvarezt/uv-script-manager/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A CLI tool to install and manage standalone Python scripts from Git repositories or local directories that lack
+A CLI tool to install and manage standalone Python scripts from direct URLs, Git repositories, or local directories that lack
 `setup.py` or `pyproject.toml` files.
 
 ## Overview
@@ -40,6 +40,7 @@ script.py --help
 
 - **Direct Git Installation**: Install scripts from any Git repository (GitHub, GitLab, Bitbucket, self-hosted) with one
 command
+- **Direct URL Installation**: Install and update raw HTTP(S) `.py` source files, including raw GitHub Gist links
 - **Local Directory Support**: Install scripts from local directories on your filesystem
 - **Script Aliasing**: Install scripts with custom names using the `--alias` flag
 - **Git Refs Support**: Install from specific branches, tags, or commits (pinned refs are preserved during updates)
@@ -89,6 +90,9 @@ uv pip install -e .
 # Basic installation
 uv-script-manager install https://github.com/user/repo --script script.py
 
+# Install a direct Python source URL
+uv-script-manager install https://example.com/tool.py
+
 # Install from a local directory (no git required)
 uv-script-manager install ./tools --script app.py
 
@@ -112,7 +116,7 @@ uv-script-manager remove script.py
 
 ### `install`
 
-Install Python scripts from a Git repository or local directory.
+Install Python scripts from a direct URL, Git repository, or local directory.
 
 ```bash
 uv-script-manager install <source> [--script <script.py> ...] [OPTIONS]
@@ -120,10 +124,13 @@ uv-script-manager install <source> [--script <script.py> ...] [OPTIONS]
 
 **Arguments:**
 
-- `source`: Git repository URL or local directory path (Git URLs support `@tag`, `@commit`, `#branch` suffixes)
+- `source`: Direct HTTP(S) `.py` URL, Git repository URL, or local directory path
 
 If `--script` is omitted in an interactive terminal, the CLI prompts you to select scripts from discovered
-candidates. In non-interactive environments, `--script` is required.
+candidates. Direct `.py` URLs identify one script and do not use `--script`.
+
+Direct URL downloads have a 10 MiB limit and retain the original URL for updates. HTML pages, compiled Python
+files (`.pyc`, `.pyo`), native extensions, zipapps, wheels, and other non-`.py` files are not supported.
 
 **Options:**
 
@@ -145,6 +152,10 @@ sources this requires `--copy-parent-dir`)
 ```bash
 # Basic installation from Git
 uv-script-manager install https://github.com/user/repo --script script.py
+
+# Install a raw Python source file or raw Gist
+uv-script-manager install https://example.com/tool.py
+uv-script-manager install https://gist.githubusercontent.com/user/id/raw/tool.py
 
 # Install from local directory
 uv-script-manager install /path/to/scripts --script app.py

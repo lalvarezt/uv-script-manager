@@ -2,7 +2,6 @@
 
 import os
 from pathlib import Path
-from typing import cast
 
 from rich.console import Console
 from rich.panel import Panel
@@ -37,7 +36,7 @@ def _normalize_status_key(status_key: str) -> str:
         "no (managed)": "managed",
     }
     normalized = aliases.get(normalized, normalized)
-    known = {"clean", "pinned", "local", "needs-attention", "managed", "unknown", "git"}
+    known = {"clean", "pinned", "local", "needs-attention", "managed", "unknown", "git", "url"}
     return normalized if normalized in known else "unknown"
 
 
@@ -69,6 +68,8 @@ def get_script_status_key(script: ScriptInfo, local_changes_cache: dict[tuple[Pa
     """Derive canonical status key used in list/show/doctor displays."""
     if script.source_type == SourceType.LOCAL:
         return "local"
+    if script.source_type == SourceType.URL:
+        return "url"
 
     if script.ref_type in ("tag", "commit"):
         return "pinned"
@@ -104,6 +105,8 @@ def get_script_source_display(
             return script.source_url
         source_parts = script.source_url.rstrip("/").split("/")
         return "/".join(source_parts[-2:]) if len(source_parts) >= 2 else script.source_url
+    if script.source_type == SourceType.URL:
+        return script.source_url or "unknown"
     return str(script.source_path) if script.source_path else "local"
 
 
@@ -118,6 +121,7 @@ def render_script_status(status_key: str, detail: str | None = None) -> str:
         "managed": "[green]Managed[/green]",
         "unknown": "[dim]Unknown[/dim]",
         "git": "[cyan]Git[/cyan]",
+        "url": "[cyan]URL[/cyan]",
     }
     rendered = labels[status_key]
     if detail:
@@ -347,18 +351,15 @@ def display_update_results(
     table.add_column("Script", style="cyan")
     table.add_column("Status")
 
-    show_local_changes = any(
-        len(result) == 3 and cast(tuple[str, str, str], result)[2].strip().lower() != "n/a"
-        for result in results
-    )
+    show_local_changes = any(len(result) == 3 and result[2].strip().lower() != "n/a" for result in results)
     if show_local_changes:
         table.add_column("Local changes")
 
     for result in results:
         if len(result) == 3:
-            script_name, status, local_changes = cast(tuple[str, str, str], result)
+            script_name, status, local_changes = result
         else:
-            script_name, status = cast(tuple[str, str], result)
+            script_name, status = result
             local_changes = "N/A"
 
         status_text = render_update_status(status)
@@ -431,6 +432,10 @@ def display_script_details(script: ScriptInfo, console: Console) -> None:
             status_rows.append(("Reason:", change_reason))
         if local_state in ("blocking", "unknown") and script.repo_path.exists():
             status_rows.append(("Inspect with:", f"[cyan]git -C {script.repo_path} status --short[/cyan]"))
+    elif script.source_type == SourceType.URL:
+        table.add_row("Source type:", "Direct Python URL")
+        table.add_row("Source URL:", f"[magenta]{script.source_url or 'N/A'}[/magenta]")
+        table.add_row("Source hash:", f"[blue]{script.source_hash or 'N/A'}[/blue]")
     else:
         table.add_row("Source type:", "Local directory")
         source_path = str(script.source_path) if script.source_path else "N/A"

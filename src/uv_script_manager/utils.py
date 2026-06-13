@@ -185,7 +185,7 @@ def validate_python_script(script_path: Path) -> bool:
     if not script_path.exists():
         return False
 
-    if not script_path.suffix == ".py":
+    if script_path.suffix.lower() != ".py":
         return False
 
     try:

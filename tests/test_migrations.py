@@ -74,7 +74,8 @@ class TestMigration001AddSourceType:
 
         # Verify source_type was not changed
         script = scripts_table.get(doc_id=1)
-        assert script["source_type"] == "local"  # type: ignore[index]
+        assert isinstance(script, dict)
+        assert script.get("source_type") == "local"
 
         db.close()
 
@@ -154,7 +155,8 @@ class TestMigration002AddCopyParentDir:
 
         # Verify copy_parent_dir was not changed
         script = scripts_table.get(doc_id=1)
-        assert script["copy_parent_dir"] is True  # type: ignore[index]
+        assert isinstance(script, dict)
+        assert script.get("copy_parent_dir") is True
 
         db.close()
 
@@ -280,8 +282,9 @@ class TestMigrationRunner:
 
         # Verify migration was applied
         script = scripts_table.get(doc_id=1)
-        assert script["source_type"] == "git"  # type: ignore[index]
-        assert script["copy_parent_dir"] is False  # type: ignore[index]
+        assert isinstance(script, dict)
+        assert script.get("source_type") == "git"
+        assert script.get("copy_parent_dir") is False
 
         # Verify schema version was updated
         assert runner.get_schema_version() == CURRENT_SCHEMA_VERSION

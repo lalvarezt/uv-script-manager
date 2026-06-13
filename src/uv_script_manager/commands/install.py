@@ -1,5 +1,6 @@
 """Install command handler."""
 
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,14 @@ from ..script_installer import (
     install_script,
 )
 from ..state import ScriptInfo, StateManager
+from ..url_source import (
+    UNSUPPORTED_URL_SOURCE,
+    URLSourceError,
+    download_url_script,
+    is_python_source_url,
+    is_unsupported_python_file_url,
+    managed_url_directory,
+)
 from ..utils import (
     copy_directory_contents,
     copy_script_file,
@@ -55,6 +64,9 @@ class InstallationContext:
     commit_hash: str | None
     actual_ref: str | None
     git_ref: GitRef | None
+    is_url: bool = False
+    source_url: str | None = None
+    source_hash: str | None = None
 
 
 @dataclass
@@ -113,7 +125,7 @@ class InstallHandler:
         request: InstallRequest,
     ) -> list[tuple[str, bool, Path | None | str]]:
         """
-        Install Python scripts from a Git repository or local directory.
+        Install Python scripts from a Git repository, local directory, or direct URL.
 
         Args:
             source: Git URL or local directory path
@@ -125,12 +137,30 @@ class InstallHandler:
         """
         # Detect and validate source type
         is_local = is_local_directory(source)
-        is_git = is_git_url(source)
+        is_url = is_python_source_url(source)
+        if is_unsupported_python_file_url(source):
+            self.console.print(f"[red]Error:[/red] {UNSUPPORTED_URL_SOURCE}")
+            raise ValueError(UNSUPPORTED_URL_SOURCE)
+        is_git = not is_url and is_git_url(source)
 
-        if not is_local and not is_git:
+        if not is_local and not is_git and not is_url:
             self.console.print(f"[red]Error:[/red] Invalid source: {source}")
-            self.console.print("Source must be either a Git URL or a local directory path.")
+            self.console.print("Source must be a Git URL, local directory path, or direct .py URL.")
             raise ValueError(f"Invalid source: {source}")
+
+        if is_url:
+            if scripts:
+                message = "--script cannot be used with a direct .py URL"
+                self.console.print(f"[red]Error:[/red] {message}")
+                raise ValueError(message)
+            if request.copy_parent_dir:
+                message = "--copy-parent-dir cannot be used with a direct .py URL"
+                self.console.print(f"[red]Error:[/red] {message}")
+                raise ValueError(message)
+            if request.add_source_package is not None:
+                message = "--add-source-package cannot be used with a direct .py URL"
+                self.console.print(f"[red]Error:[/red] {message}")
+                raise ValueError(message)
 
         # Validate --add-source-package requirements
         if request.add_source_package is not None and is_local and not request.copy_parent_dir:
@@ -138,14 +168,32 @@ class InstallHandler:
             self.console.print(error_msg)
             raise ValueError("--add-source-package requires --copy-parent-dir for local sources")
 
-        # Check for existing installations
-        if not self._check_existing_scripts(scripts, request.force):
-            return []
-
         # Handle source-specific operations
-        if is_git:
+        backup_path = None
+        source_hash = None
+        downloaded_url_script = None
+        if is_url:
+            try:
+                repo_path = managed_url_directory(self.config.repo_dir, source)
+                downloaded = download_url_script(source, repo_path)
+            except URLSourceError as e:
+                self.console.print(f"[red]Error:[/red] {e}")
+                raise ValueError(str(e)) from e
+            scripts = (downloaded.filename,)
+            if not self._check_existing_scripts(scripts, request.force):
+                downloaded.path.unlink(missing_ok=True)
+                return []
+            downloaded_url_script = downloaded
+            source_path = None
+            commit_hash = actual_ref = git_ref = None
+            source_hash = downloaded.source_hash
+        elif is_git:
+            if not self._check_existing_scripts(scripts, request.force):
+                return []
             repo_path, source_path, commit_hash, actual_ref, git_ref = self._handle_git_source(source)
         else:
+            if not self._check_existing_scripts(scripts, request.force):
+                return []
             repo_path, source_path, commit_hash, actual_ref, git_ref = self._handle_local_source(
                 source, scripts, request.copy_parent_dir
             )
@@ -156,13 +204,33 @@ class InstallHandler:
             if request.verbose:
                 self.console.print("[cyan]Skipping dependency resolution (--no-deps)[/cyan]")
         else:
-            dependencies = self._resolve_dependencies(
-                request.with_deps, repo_path, source_path, request.verbose
-            )
+            try:
+                dependencies = self._resolve_dependencies(
+                    request.with_deps, repo_path, source_path, request.verbose
+                )
+            except Exception:
+                if downloaded_url_script:
+                    downloaded_url_script.path.unlink(missing_ok=True)
+                raise
 
         # Determine installation directory
         install_directory = request.install_dir or self.config.install_dir
         ensure_dir(install_directory)
+
+        if downloaded_url_script:
+            target_path = repo_path / downloaded_url_script.filename
+            try:
+                if target_path.exists():
+                    backup_path = repo_path / f".{downloaded_url_script.filename}.uvsm-backup"
+                    os.replace(target_path, backup_path)
+                os.replace(downloaded_url_script.path, target_path)
+            except OSError as e:
+                downloaded_url_script.path.unlink(missing_ok=True)
+                if backup_path and backup_path.exists():
+                    os.replace(backup_path, target_path)
+                message = f"Failed to store URL source: {e}"
+                self.console.print(f"[red]Error:[/red] {message}")
+                raise ValueError(message) from e
 
         # Create installation context and options
         context = InstallationContext(
@@ -170,10 +238,13 @@ class InstallHandler:
             source_path=source_path,
             is_local=is_local,
             is_git=is_git,
+            is_url=is_url,
             copy_parent_dir=request.copy_parent_dir,
             commit_hash=commit_hash,
             actual_ref=actual_ref,
             git_ref=git_ref,
+            source_url=source if is_url else None,
+            source_hash=source_hash,
         )
         options = ScriptInstallOptions(
             dependencies=dependencies,
@@ -185,7 +256,17 @@ class InstallHandler:
         )
 
         # Install scripts
-        return [self._install_single_script(script_name, context, options) for script_name in scripts]
+        results = [self._install_single_script(script_name, context, options) for script_name in scripts]
+        if is_url:
+            target_path = context.repo_path / scripts[0]
+            if results[0][1]:
+                if backup_path:
+                    backup_path.unlink(missing_ok=True)
+            else:
+                target_path.unlink(missing_ok=True)
+                if backup_path:
+                    os.replace(backup_path, target_path)
+        return results
 
     def _check_existing_scripts(self, scripts: tuple[str, ...], force: bool) -> bool:
         """
@@ -443,6 +524,17 @@ class InstallHandler:
                     symlink_path=symlink_path,
                     dependencies=all_deps,
                     commit_hash=context.commit_hash,
+                )
+            elif context.is_url:
+                script_info = ScriptInfo(
+                    name=script_name,
+                    source_type=SourceType.URL,
+                    source_url=context.source_url,
+                    source_hash=context.source_hash,
+                    installed_at=datetime.now(),
+                    repo_path=context.repo_path,
+                    symlink_path=symlink_path,
+                    dependencies=all_deps,
                 )
             else:
                 script_info = ScriptInfo(
