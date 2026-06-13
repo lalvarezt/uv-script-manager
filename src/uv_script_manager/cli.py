@@ -292,7 +292,7 @@ def _filter_and_sort_scripts(
             if source_text
             in (
                 (script.source_url or "")
-                if script.source_type == SourceType.GIT
+                if script.source_type in (SourceType.GIT, SourceType.URL)
                 else str(script.source_path or "")
             ).lower()
         ]
@@ -307,8 +307,8 @@ def _filter_and_sort_scripts(
 
     if status_filter:
         status_key = status_filter.lower()
-        if status_key == "git":
-            filtered = [script for script in filtered if script.source_type == SourceType.GIT]
+        if status_key in ("git", "url"):
+            filtered = [script for script in filtered if script.source_type.value == status_key]
         else:
             filtered = [
                 script
@@ -323,7 +323,7 @@ def _filter_and_sort_scripts(
             filtered,
             key=lambda script: (
                 (script.source_url or "")
-                if script.source_type == SourceType.GIT
+                if script.source_type in (SourceType.GIT, SourceType.URL)
                 else str(script.source_path or "")
             ).lower(),
         )
@@ -352,11 +352,12 @@ def _script_to_json(
         "display_name": script.display_name,
         "source_type": script.source_type.value,
         "source": script.source_url
-        if script.source_type == SourceType.GIT
+        if script.source_type in (SourceType.GIT, SourceType.URL)
         else str(script.source_path or ""),
         "ref": script.ref,
         "ref_type": script.ref_type,
         "commit_hash": script.commit_hash,
+        "source_hash": script.source_hash,
         "installed_at": script.installed_at.isoformat(),
         "dependencies": script.dependencies,
         "repo_path": str(script.repo_path),
@@ -424,11 +425,12 @@ def _print_update_all_impact_summary(state_manager: StateManager, dry_run: bool)
         return
 
     local_count = sum(1 for script in scripts if script.source_type.value == "local")
-    git_count = len(scripts) - local_count
+    git_count = sum(1 for script in scripts if script.source_type.value == "git")
+    url_count = sum(1 for script in scripts if script.source_type.value == "url")
     pinned_count = sum(1 for script in scripts if script.ref_type in ("tag", "commit"))
 
     console.print("[bold]Impact:[/bold] update --all")
-    console.print(f"  Scripts: {len(scripts)} ({git_count} git, {local_count} local-only)")
+    console.print(f"  Scripts: {len(scripts)} ({git_count} git, {url_count} url, {local_count} local-only)")
     if pinned_count:
         console.print(
             "  Pinned refs: "
@@ -480,7 +482,7 @@ def _print_needs_attention_hint(scripts) -> None:
 )
 @click.pass_context
 def cli(ctx: click.Context, config: Path | None) -> None:
-    """Install and manage Python scripts from Git repositories or local directories."""
+    """Install and manage Python scripts from URLs, Git repositories, or local directories."""
     ctx.ensure_object(dict)
 
     # Load configuration
@@ -499,12 +501,12 @@ def cli(ctx: click.Context, config: Path | None) -> None:
 
 
 @cli.command()
-@click.argument("git-url")
+@click.argument("source")
 @click.option(
     "--script",
     "-s",
     multiple=True,
-    help="Script names to install (can be specified multiple times)",
+    help="For Git/local sources: script names to install (can be specified multiple times)",
 )
 @click.option(
     "--with",
@@ -533,7 +535,7 @@ def cli(ctx: click.Context, config: Path | None) -> None:
 @click.option(
     "--add-source-package",
     default=None,
-    help="Add source as a local package dependency (optional: specify package name)",
+    help="For Git/local sources: add source as a local package dependency (optional: specify package name)",
 )
 @click.option(
     "--alias",
@@ -548,7 +550,7 @@ def cli(ctx: click.Context, config: Path | None) -> None:
 @click.pass_context
 def install(
     ctx: click.Context,
-    git_url: str,
+    source: str,
     script: tuple[str, ...],
     with_deps: str | None,
     force: bool,
@@ -562,7 +564,7 @@ def install(
     no_deps: bool,
 ) -> None:
     """
-    Install Python scripts from a Git repository or local directory.
+    Install Python scripts from a direct URL, Git repository, or local directory.
 
     Downloads the specified repository (or copies from local directory),
     processes the requested scripts, adds dependencies, modifies shebangs
@@ -573,6 +575,10 @@ def install(
         \b
         # Install from Git repository
         uv-script-manager install https://github.com/user/repo --script myscript.py
+
+        \b
+        # Install from a direct Python source URL
+        uv-script-manager install https://example.com/myscript.py
 
         \b
         # Install from local directory
@@ -614,14 +620,19 @@ def install(
         uv-script-manager install https://github.com/user/repo --script app.py --no-deps
     """
     config = ctx.obj["config"]
+    from .url_source import UNSUPPORTED_URL_SOURCE, is_python_source_url, is_unsupported_python_file_url
 
     selected_scripts = script
+    is_url_source = is_python_source_url(source)
+    if is_unsupported_python_file_url(source):
+        console.print(f"[red]Error:[/red] {UNSUPPORTED_URL_SOURCE}")
+        sys.exit(1)
 
-    if not selected_scripts:
+    if not selected_scripts and not is_url_source:
         from .utils import is_git_url, is_local_directory
 
-        if not (is_local_directory(git_url) or is_git_url(git_url)):
-            console.print(f"[red]Error:[/red] Invalid source: {git_url}")
+        if not (is_local_directory(source) or is_git_url(source)):
+            console.print(f"[red]Error:[/red] Invalid source: {source}")
             console.print("Source must be either a Git URL or a local directory path.")
             sys.exit(1)
 
@@ -634,7 +645,7 @@ def install(
             sys.exit(1)
 
         try:
-            candidates = _discover_install_script_candidates(git_url, config.clone_depth)
+            candidates = _discover_install_script_candidates(source, config.clone_depth)
         except ValueError as e:
             console.print(f"[red]Error:[/red] Failed to discover scripts: {e}")
             sys.exit(1)
@@ -649,7 +660,7 @@ def install(
         selected_scripts = _prompt_for_script_selection(candidates)
 
     # Validate --alias flag usage
-    if alias is not None and len(selected_scripts) != 1:
+    if alias is not None and not is_url_source and len(selected_scripts) != 1:
         console.print("[red]Error:[/red] --alias can only be used when installing a single script")
         sys.exit(1)
 
@@ -668,7 +679,7 @@ def install(
             alias=alias,
             no_deps=no_deps,
         )
-        results = handler.install(source=git_url, scripts=selected_scripts, request=request)
+        results = handler.install(source=source, scripts=selected_scripts, request=request)
 
         install_directory = install_dir if install_dir else config.install_dir
         display_install_results(results, install_directory, console)
@@ -1147,6 +1158,8 @@ def export_scripts(ctx: click.Context, output: Path | None) -> None:
             if script.ref_type:
                 script_data["ref_type"] = script.ref_type
             script_data["source"] = source_url
+        elif script.source_type == SourceType.URL:
+            script_data["source"] = script.source_url
         else:
             script_data["source"] = str(script.source_path) if script.source_path else None
             script_data["copy_parent_dir"] = script.copy_parent_dir
@@ -1269,7 +1282,8 @@ def import_scripts(ctx: click.Context, file: Path, force: bool, dry_run: bool) -
                 alias=alias,
                 no_deps=False,
             )
-            result = handler.install(source=source, scripts=(name,), request=request)
+            install_scripts = () if source_type == SourceType.URL.value else (name,)
+            result = handler.install(source=source, scripts=install_scripts, request=request)
             results.extend(result)
         except (ValueError, FileNotFoundError, NotADirectoryError) as e:
             results.append((name, False, str(e)))

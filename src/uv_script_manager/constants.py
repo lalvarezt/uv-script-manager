@@ -10,10 +10,12 @@ class SourceType(str, Enum):
     Attributes:
         GIT: Script installed from Git repository
         LOCAL: Script installed from local filesystem
+        URL: Script installed from a direct Python source URL
     """
 
     GIT = "git"
     LOCAL = "local"
+    URL = "url"
 
 
 # Script inline metadata markers (PEP 723)

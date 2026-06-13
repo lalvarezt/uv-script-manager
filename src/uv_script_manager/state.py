@@ -17,7 +17,7 @@ class ScriptInfo(BaseModel):
     Pydantic model that automatically handles serialization/deserialization,
     validation, and type coercion for script metadata.
 
-    Supports both Git and local sources via the source_type field.
+    Supports Git, local, and URL sources via the source_type field.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -33,6 +33,7 @@ class ScriptInfo(BaseModel):
     ref: str | None = None
     ref_type: str | None = None  # "branch", "tag", "commit", or "default"
     commit_hash: str | None = None
+    source_hash: str | None = None
     # Local-specific fields
     source_path: Path | None = None  # Original source path for updates
     copy_parent_dir: bool = False  # Whether entire parent directory was copied
@@ -45,7 +46,7 @@ class ScriptInfo(BaseModel):
     @property
     def source_display(self) -> str:
         """Get source display value for user-facing output."""
-        if self.source_type == SourceType.GIT:
+        if self.source_type in (SourceType.GIT, SourceType.URL):
             return self.source_url or "N/A"
         return str(self.source_path) if self.source_path else "local"
 
@@ -194,6 +195,8 @@ class StateManager:
                     issues.append(
                         f"Source directory missing for local script '{script.name}': {script.source_path}"
                     )
+            if script.source_type == SourceType.URL and not script.source_url:
+                issues.append(f"Source URL missing for URL script '{script.name}'")
 
         return issues
 
