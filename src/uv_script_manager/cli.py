@@ -5,7 +5,6 @@ import os
 import shlex
 import sys
 from pathlib import Path
-from typing import cast
 
 # Runtime version check - must be before other imports
 if sys.version_info < (3, 11):
@@ -376,9 +375,9 @@ def _update_results_to_json(results: list[tuple[str, str] | tuple[str, str, str]
     payload: list[dict[str, object]] = []
     for result in results:
         if len(result) == 3:
-            script_name, status, local_changes = cast(tuple[str, str, str], result)
+            script_name, status, local_changes = result
         else:
-            script_name, status = cast(tuple[str, str], result)
+            script_name, status = result
             local_changes = None
         payload.append(
             {

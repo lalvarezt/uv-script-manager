@@ -191,19 +191,23 @@ def test_cli_rejects_compiled_python_url(tmp_path: Path, monkeypatch) -> None:
 @pytest.mark.parametrize(
     ("options", "message"),
     [
-        (["--script", "tool.py"], "--script cannot be used with a direct .py URL"),
-        (["--copy-parent-dir"], "--copy-parent-dir cannot be used with a direct .py URL"),
-        (["--add-source-package", "tool"], "--add-source-package cannot be used with a direct .py URL"),
+        (("--script", "tool.py"), "--script cannot be used with a direct .py URL"),
+        (("--copy-parent-dir",), "--copy-parent-dir cannot be used with a direct .py URL"),
+        (("--add-source-package", "tool"), "--add-source-package cannot be used with a direct .py URL"),
     ],
 )
 def test_cli_rejects_url_incompatible_options_before_download(
-    tmp_path: Path, monkeypatch, options: list[str], message: str
+    tmp_path: Path, monkeypatch, options: tuple[str, ...], message: str
 ) -> None:
     _config(tmp_path)
     monkeypatch.setattr("uv_script_manager.cli.verify_uv_available", lambda: None)
+
+    def fail_download(*args) -> None:
+        raise AssertionError("invalid URL options must be rejected before download")
+
     monkeypatch.setattr(
         "uv_script_manager.commands.install.download_url_script",
-        lambda *args: pytest.fail("invalid URL options must be rejected before download"),
+        fail_download,
     )
 
     result = CliRunner().invoke(

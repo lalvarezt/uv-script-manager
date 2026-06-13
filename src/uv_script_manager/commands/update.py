@@ -129,7 +129,7 @@ class UpdateHandler:
             else:
                 self.console.print(f"Updating {len(scripts)} script(s)...")
 
-        results = []
+        results: list[tuple[str, str] | tuple[str, str, str]] = []
         git_checked = False
 
         for script_info in scripts:

@@ -2,7 +2,6 @@
 
 import os
 from pathlib import Path
-from typing import cast
 
 from rich.console import Console
 from rich.panel import Panel
@@ -352,18 +351,15 @@ def display_update_results(
     table.add_column("Script", style="cyan")
     table.add_column("Status")
 
-    show_local_changes = any(
-        len(result) == 3 and cast(tuple[str, str, str], result)[2].strip().lower() != "n/a"
-        for result in results
-    )
+    show_local_changes = any(len(result) == 3 and result[2].strip().lower() != "n/a" for result in results)
     if show_local_changes:
         table.add_column("Local changes")
 
     for result in results:
         if len(result) == 3:
-            script_name, status, local_changes = cast(tuple[str, str, str], result)
+            script_name, status, local_changes = result
         else:
-            script_name, status = cast(tuple[str, str], result)
+            script_name, status = result
             local_changes = "N/A"
 
         status_text = render_update_status(status)

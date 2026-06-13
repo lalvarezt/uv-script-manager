@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import cast
 
 import pytest
 from rich.console import Console
@@ -138,7 +137,7 @@ def test_update_all_collects_errors_for_dry_and_apply_modes(tmp_path: Path, monk
     dry_error_found = False
     for row in dry_results:
         if len(row) == 3:
-            _script_name, status, local_changes = cast(tuple[str, str, str], row)
+            _script_name, status, local_changes = row
             if status == "Error: dry boom" and local_changes == "Unknown":
                 dry_error_found = True
                 break
